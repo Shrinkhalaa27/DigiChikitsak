@@ -8,7 +8,6 @@
 
 - **Team name:** TeamDiamonds
 - **Team member:** Shrinkhala Anand
-- **Team member:** Vaidik Gupta
 - **Institution:** Kalinga Institute of Industrial Technology (KIIT), Bhubaneswar, Odisha, India
 - **Incubator / accelerator:** No affiliation claimed. Add an official incubator only if the team is formally associated with one.
 - **Contact email:** Add a team-controlled contact email before public submission.
