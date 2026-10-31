@@ -1,0 +1,8 @@
+services:
+  digichikitsak:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app/digichikitsak.db:/app/app/digichikitsak.db
+    restart: unless-stopped

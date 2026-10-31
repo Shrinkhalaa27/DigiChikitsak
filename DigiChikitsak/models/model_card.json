@@ -1,0 +1,22 @@
+{
+  "model": "DictVectorizer + Multinomial Naive Bayes",
+  "dataset": "Disease_symptom_and_patient_profile_dataset.csv",
+  "rows": 349,
+  "unique_rows": 300,
+  "classes": 116,
+  "features": [
+    "Fever",
+    "Cough",
+    "Fatigue",
+    "Difficulty Breathing",
+    "Age",
+    "Gender",
+    "Blood Pressure",
+    "Cholesterol Level"
+  ],
+  "limitations": [
+    "Small dataset with many disease classes and sparse examples per class.",
+    "Predictions are educational pattern matches, not a diagnosis or calibrated clinical probabilities.",
+    "Do not use this model for treatment, triage, or medical decisions."
+  ]
+}

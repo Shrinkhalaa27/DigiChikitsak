@@ -1,0 +1,742 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>DigiChikitsak · Digital Health Kiosk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Sans+Tamil:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: a walk-up health kiosk. A phase rail on top, one large stage below where the AI doctor speaks and the patient answers. An ECG trace is the signature line. */
+:root{
+  --bg:#E9F0EE; --surface:#FFFFFF; --surface2:#F2F7F6; --ink:#0F2A2C; --muted:#52706F; --line:#D2E0DD;
+  --teal:#07767A; --teal-ink:#FFFFFF; --teal-soft:#D3ECEA; --gold:#E3A008; --gold-soft:#FBEFC9;
+  --ok:#1B8A57; --ok-soft:#D8F0E3; --warn:#9A6208; --warn-soft:#FAEBCB; --crit:#C2373B; --crit-soft:#F9DADA;
+  --shadow:0 1px 2px rgba(15,42,44,.06),0 14px 34px -14px rgba(15,42,44,.22);
+  --f-display:'Bricolage Grotesque','Noto Sans Devanagari','Noto Sans Tamil',system-ui,sans-serif;
+  --f-body:'Hanken Grotesk','Noto Sans Devanagari','Noto Sans Tamil',system-ui,sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#081516; --surface:#0F2527; --surface2:#143034; --ink:#E3F1EF; --muted:#8CAAA9; --line:#1F4043;
+  --teal:#41C7C0; --teal-ink:#032322; --teal-soft:#12393B; --gold:#F2B83B; --gold-soft:#3A3012;
+  --ok:#4CCB8F; --ok-soft:#133A2A; --warn:#E8B04B; --warn-soft:#3B2F12; --crit:#F27A7D; --crit-soft:#431B1D;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 14px 34px -14px rgba(0,0,0,.6); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#081516; --surface:#0F2527; --surface2:#143034; --ink:#E3F1EF; --muted:#8CAAA9; --line:#1F4043;
+  --teal:#41C7C0; --teal-ink:#032322; --teal-soft:#12393B; --gold:#F2B83B; --gold-soft:#3A3012;
+  --ok:#4CCB8F; --ok-soft:#133A2A; --warn:#E8B04B; --warn-soft:#3B2F12; --crit:#F27A7D; --crit-soft:#431B1D;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 14px 34px -14px rgba(0,0,0,.6); color-scheme:dark}
+html{font-size:16px} html.big{font-size:19px}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1rem;line-height:1.5;
+  padding-block:18px 28px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+*{box-sizing:border-box} button,input,select,textarea{font:inherit;color:inherit}
+.app{max-width:1020px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--f-display);line-height:1.12;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:1.65rem;font-weight:700} h3{font-size:1.15rem;font-weight:700}
+p{margin:0}
+.muted{color:var(--muted)} .mono{font-family:var(--f-mono)}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:800;font-size:1.3rem}
+.brand svg{width:38px;height:38px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tool{min-height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:600;font-size:.9rem}
+.tool[aria-pressed="true"]{background:var(--teal);color:var(--teal-ink);border-color:var(--teal)}
+.ecgline{height:30px;width:100%;display:block}
+.ecgline path{fill:none;stroke:var(--teal);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:6 0}
+@media (prefers-reduced-motion:no-preference){.ecgline path{stroke-dasharray:900;stroke-dashoffset:900;animation:draw 5s linear infinite}}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* phases */
+.phases{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.ph{display:flex;flex-direction:column;gap:6px;font-size:.78rem;font-weight:600;color:var(--muted);min-width:0}
+.ph i{display:block;height:6px;border-radius:6px;background:var(--line)}
+.ph.on{color:var(--ink)} .ph.on i{background:var(--teal)} .ph.done i{background:var(--teal);opacity:.45}
+.ph span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* stage */
+.stage{display:flex;flex-direction:column;gap:16px;min-height:60vh}
+.say{display:flex;align-items:flex-end;gap:14px}
+.avatar{width:84px;height:84px;flex:none}
+.avatar .halo{fill:var(--teal-soft)} .avatar .face{fill:var(--surface);stroke:var(--teal);stroke-width:3}
+.avatar .eye{fill:var(--ink)} .avatar .mouth,.avatar .steth{fill:none;stroke:var(--teal);stroke-width:3;stroke-linecap:round}
+.avatar .plus{fill:var(--gold)}
+@media (prefers-reduced-motion:no-preference){.avatar .eye{animation:blink 4.5s infinite;transform-origin:center;transform-box:fill-box}.avatar .mouth{animation:talk 1.1s ease-in-out infinite;transform-origin:50px 68px}}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+@keyframes talk{50%{transform:scaleY(.6)}}
+.bubble{background:var(--surface);border:1px solid var(--line);border-radius:20px 20px 20px 6px;padding:16px 20px;box-shadow:var(--shadow);max-width:60ch;font-size:1.1rem;font-weight:500}
+.bubble b{font-family:var(--f-display)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:24px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:18px;min-width:0}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.btn{min-height:54px;padding:0 26px;border-radius:14px;border:0;background:var(--teal);color:var(--teal-ink);font-weight:700;font-size:1.05rem;cursor:pointer}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.gold{background:var(--gold);color:#241800}
+.btn.sm{min-height:44px;padding:0 18px;font-size:.95rem}
+.back{align-self:flex-start;background:none;border:0;color:var(--muted);font-weight:600;cursor:pointer;min-height:36px;padding:0}
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:.92rem}
+input[type=text],input[type=tel],input[type=date],input[type=email],input[type=number],textarea{min-height:54px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface2);padding:10px 16px;width:100%;font-size:1.05rem}
+textarea{min-height:110px;resize:vertical}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.cb{min-height:48px;padding:0 18px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface2);cursor:pointer;font-weight:600}
+.cb.sel{background:var(--teal);border-color:var(--teal);color:var(--teal-ink)}
+.pill{display:inline-flex;align-items:center;padding:3px 12px;border-radius:999px;font-size:.8rem;font-weight:700}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.crit{background:var(--crit-soft);color:var(--crit)}
+.hint{font-size:.85rem;color:var(--muted);background:var(--surface2);border-radius:10px;padding:8px 12px}
+.big-n{font-family:var(--f-mono);font-weight:700;font-size:2.6rem;line-height:1}
+.unit{font-size:.95rem;color:var(--muted);font-family:var(--f-body);font-weight:600}
+
+/* welcome */
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:24px;align-items:center}
+@media(max-width:760px){.hero{grid-template-columns:1fr}}
+.hero h1{font-size:clamp(2.4rem,7vw,4rem);font-weight:800}
+.hero h1 em{font-style:normal;color:var(--teal)}
+.facts{display:flex;gap:10px;flex-wrap:wrap}
+.fact{background:var(--surface2);border-radius:12px;padding:8px 14px;font-size:.88rem;font-weight:600}
+.kiosk-art{background:var(--teal-soft);border-radius:26px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.kiosk-art .avatar{width:150px;height:150px}
+
+/* devices */
+.dev{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.dev svg.ic{width:110px;height:110px;flex:none;stroke:var(--teal);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;background:var(--teal-soft);border-radius:26px;padding:20px}
+.mini{display:flex;gap:10px;flex-wrap:wrap}
+.mini div{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.78rem;font-weight:600;width:86px;text-align:center}
+.mini svg{width:52px;height:52px;stroke:var(--teal);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;background:var(--teal-soft);border-radius:16px;padding:10px}
+.bar{height:10px;border-radius:10px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--teal);border-radius:10px}
+.bar.run i{animation:fill 2.4s linear forwards}
+@keyframes fill{to{width:100%}}
+.reading{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;background:var(--surface2);border-radius:18px;padding:18px 22px}
+.reading>div{display:flex;flex-direction:column;gap:6px}
+canvas.ecg{width:100%;height:120px;border-radius:14px;background:var(--surface2);display:block}
+
+/* crunch */
+.steps{display:flex;flex-direction:column;gap:12px}
+.steps li{list-style:none;display:flex;gap:12px;align-items:center;font-weight:600;opacity:.4;transition:opacity .3s}
+.steps li.on{opacity:1}
+.steps .dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:.8rem;flex:none}
+.steps li.on .dot{background:var(--ok);border-color:var(--ok);color:#fff}
+.steps{padding:0;margin:0}
+.spin{width:64px;height:64px;border-radius:50%;border:6px solid var(--teal-soft);border-top-color:var(--teal)}
+@media (prefers-reduced-motion:no-preference){.spin{animation:rot 1s linear infinite}}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* dx */
+.alert{background:var(--crit-soft);color:var(--crit);border-radius:16px;padding:16px 20px;font-weight:700;display:flex;gap:12px;align-items:flex-start}
+.dxcard{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center}
+@media(max-width:600px){.dxcard{grid-template-columns:1fr}}
+.dxname{font-family:var(--f-display);font-weight:800;font-size:2.1rem;line-height:1.05}
+.list{margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:6px}
+.card{border:1.5px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:8px;background:var(--surface2);min-width:0}
+.card.pick{border-color:var(--teal);background:var(--teal-soft)}
+.ring{width:118px;height:118px}
+.tbl{width:100%;border-collapse:collapse;font-size:.95rem}
+.tbl td,.tbl th{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+.tbl th{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.scroll-x{overflow-x:auto}
+
+/* report */
+.paper{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+.paper-head{background:var(--teal);color:var(--teal-ink);padding:18px 24px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
+.paper-head b{font-family:var(--f-display);font-size:1.4rem}
+.paper-body{padding:22px 24px;display:flex;flex-direction:column;gap:20px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kv div{display:flex;flex-direction:column;gap:2px}
+.kv small{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.twin{width:100%;height:auto;max-width:520px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.82rem;font-weight:600}
+.legend i{display:inline-block;width:18px;height:4px;border-radius:4px;margin-right:6px;vertical-align:middle}
+.qr{width:96px;height:96px;flex:none}
+.idcard{background:linear-gradient(135deg,var(--teal),#0B4C5C);color:#fff;border-radius:22px;padding:22px;display:flex;justify-content:space-between;gap:16px;align-items:center;max-width:480px;box-shadow:var(--shadow)}
+.idcard .num{font-family:var(--f-mono);font-size:1.9rem;font-weight:700;letter-spacing:.06em}
+.idcard .qr{background:#fff;border-radius:10px;padding:6px}
+.toast{background:var(--ok-soft);color:var(--ok);border-radius:12px;padding:10px 14px;font-weight:600;font-size:.92rem}
+.demo{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:.82rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:14px}
+.demo .cb{min-height:36px;font-size:.82rem;padding:0 12px}
+.fade{animation:fade .35s ease both}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}}
+@media (prefers-reduced-motion:reduce){.fade{animation:none}}
+@media(max-width:520px){.avatar{width:64px;height:64px}.bubble{font-size:1rem;padding:12px 16px}.panel{padding:18px}.big-n{font-size:2.1rem}}
+
+.pb{display:flex;flex-direction:column;gap:6px}
+.pb .hd{display:flex;justify-content:space-between;gap:10px;font-weight:600;flex-wrap:wrap}
+.pb .tr{height:12px;border-radius:12px;background:var(--line);overflow:hidden}
+.pb .tr i{display:block;height:100%;width:0;border-radius:12px;background:linear-gradient(90deg,var(--teal),var(--gold));transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+.bar i[data-w]{transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+.stag>*{animation:fade .5s ease both}.stag>*:nth-child(2){animation-delay:.1s}.stag>*:nth-child(3){animation-delay:.2s}.stag>*:nth-child(4){animation-delay:.3s}
+@keyframes pulse{50%{transform:scale(1.07);box-shadow:0 0 0 14px var(--teal-soft)}}
+@keyframes ringin{from{stroke-dashoffset:var(--c)}}
+@media (prefers-reduced-motion:no-preference){.rg{animation:ringin 1.3s ease-out both}.dev.busy svg.ic{animation:pulse 1s ease-in-out infinite}}
+@media (prefers-reduced-motion:reduce){.pb .tr i,.bar i[data-w]{transition:none}.stag>*{animation:none}}
+details.mc{border:1.5px solid var(--line);border-radius:14px;padding:0 16px;background:var(--surface2)}
+details.mc summary{cursor:pointer;font-weight:700;min-height:48px;display:flex;align-items:center}
+details.mc[open]{padding-bottom:14px}
+.mc table{font-size:.85rem}
+
+/* Consistent DigiChikitsak visual language across every workflow screen */
+.app{max-width:1440px;margin:0 auto;padding:18px 28px 24px;background:radial-gradient(ellipse at 12% 0%,#f5fffc 0,#f0f8f6 44%,var(--bg) 100%);min-height:100vh}
+.top{border:1px solid #dcebe7;background:rgba(255,255,255,.76);border-radius:16px;padding:12px 16px;box-shadow:0 5px 20px rgba(27,69,65,.045)}
+.brand{gap:10px;color:#14777a;font-weight:800}
+.brand:after{content:'Your First Step to Better Health';display:block;font:500 11px/1.2 'Hanken Grotesk',sans-serif;color:#3b7778;letter-spacing:0;margin-left:-2px}
+.panel,.paper,.card{box-shadow:0 8px 26px rgba(27,69,65,.055)}
+.btn{border-radius:12px}
+.phases{padding:12px 6px}
+#demo{border-radius:14px;background:rgba(255,255,255,.72);padding:13px 15px;margin-top:20px}
+body.dark .app{background:radial-gradient(ellipse at 12% 0%,#183b3a 0,#102b2c 44%,var(--bg) 100%)}
+body.dark .top,body.dark #demo{background:rgba(21,43,44,.9);border-color:var(--line)}
+@media(max-width:640px){.app{padding:10px}.brand:after{display:none}.top{padding:10px}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="12" fill="var(--teal)"/><path d="M5 22h8l3-8 5 16 4-12 2 4h8" fill="none" stroke="var(--teal-ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      DigiChikitsak
+    </div>
+    <div class="tools" id="tools"></div>
+  </header>
+  <svg class="ecgline" viewBox="0 0 1000 30" preserveAspectRatio="none" aria-hidden="true"><path d="M0 15H180l8-2 8 2h40l10-3 8 3h20l6 0 6-12 10 26 8-14 6 4h60l8-2 8 2h120l10-3 8 3h24l6-12 10 26 8-14 6 4h280"/></svg>
+  <nav class="phases" id="phases" aria-label="Progress"></nav>
+  <main class="stage" id="stage"></main>
+  <footer class="demo" id="demo"></footer>
+</div>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- language ---------- */
+const L={
+en:{tagline:'Your digital physician',pick_lang:'Choose your language',consent:'I agree to my vitals and symptoms being used to prepare my health report.',start:'Start',
+ login_h:'Welcome. Let us find your health record.',id_l:'Patient ID or mobile number',otp_l:'OTP sent to your registered mobile',send_otp:'Send OTP',verify:'Verify',new_user:'I am not registered',
+ reg_h:'Create your account',name:'Your name',dob:'Date of birth',mobile:'Mobile number',gender:'Gender',height:'Height (cm)',register:'Register',your_id:'This is your patient ID',continue:'Continue',
+ wear_h:'Please wear the accessories below as instructed.',wear_p:'Five short steps. I will guide you through each one.',
+ ox_h:'Put on the oximeter',ox_d:'Place your index finger in the clip and stay still.',temp_h:'Stand in front of the thermal body scanner',temp_d:'Face the scanner with your forehead about 10 cm away.',
+ bp_h:'Put on the BP machine',bp_d:'Wrap the cuff on your left arm and rest your arm at heart level.',wt_h:'Please stand on the weighing machine',wt_d:'Stand straight, barefoot, and keep still.',
+ ecg_h:'Please put this on your chest nicely',ecg_d:'Press the adhesive patch on the left side of your chest.',
+ measure:'Start measuring',measuring:'Measuring…',next:'Next',crunch:'Crunching your data…',
+ hello_h:'Hello! Please describe how you feel.',hello_p:'Type your symptoms or pick from the list below.',send:'Send',days_h:'How many days has this been going on?',
+ verify_h:'Please note and verify these details.',verify_p:'This is what I have written down.',confirm:'All correct',dx_h:'Your first assessment',care_h:'What you can do now',doc_h:'Recommended doctor',
+ resolved_h:'Is your issue resolved?',yes:'Yes',no:'No',report_h:'Your health report',print:'Print',mail:'Mail it',notify:'Check-back notification',med_h:'Medicines',done:'Finish',
+ d0:'Today',d1:'1–2 days',d2:'3–5 days',d3:'6+ days',p0:'Identify',p1:'Vitals',p2:'Consult',p3:'Care',p4:'Report',back:'Back'},
+hi:{tagline:'आपका डिजिटल चिकित्सक',pick_lang:'अपनी भाषा चुनें',consent:'मैं सहमत हूँ कि मेरे वाइटल्स और लक्षणों का उपयोग मेरी स्वास्थ्य रिपोर्ट बनाने में हो।',start:'शुरू करें',
+ login_h:'स्वागत है। आइए आपका स्वास्थ्य रिकॉर्ड खोजें।',id_l:'मरीज़ आईडी या मोबाइल नंबर',otp_l:'पंजीकृत मोबाइल पर भेजा गया OTP',send_otp:'OTP भेजें',verify:'सत्यापित करें',new_user:'मैं पंजीकृत नहीं हूँ',
+ reg_h:'नया खाता बनाएँ',name:'आपका नाम',dob:'जन्म तिथि',mobile:'मोबाइल नंबर',gender:'लिंग',height:'ऊँचाई (सेमी)',register:'पंजीकरण करें',your_id:'यह आपका मरीज़ आईडी है',continue:'आगे बढ़ें',
+ wear_h:'कृपया निर्देशानुसार नीचे दिए उपकरण पहनें।',wear_p:'पाँच छोटे चरण। हर चरण में मैं आपका मार्गदर्शन करूँगा।',
+ ox_h:'ऑक्सीमीटर लगाएँ',ox_d:'अपनी तर्जनी उंगली क्लिप में रखें और स्थिर रहें।',temp_h:'थर्मल बॉडी स्कैनर के सामने खड़े हों',temp_d:'माथे को स्कैनर की ओर रखें, लगभग 10 सेमी दूर।',
+ bp_h:'बीपी मशीन लगाएँ',bp_d:'बाएँ हाथ पर कफ़ बाँधें और हाथ हृदय के स्तर पर रखें।',wt_h:'कृपया वज़न मशीन पर खड़े हों',wt_d:'नंगे पैर सीधे खड़े रहें।',
+ ecg_h:'कृपया इसे अपनी छाती पर ठीक से लगाएँ',ecg_d:'चिपकने वाला पैच छाती के बाईं ओर लगाएँ।',
+ measure:'मापना शुरू करें',measuring:'माप रहा हूँ…',next:'अगला',crunch:'आपका डेटा विश्लेषण हो रहा है…',
+ hello_h:'नमस्ते! कृपया बताइए आप कैसा महसूस कर रहे हैं।',hello_p:'अपने लक्षण लिखें या नीचे से चुनें।',send:'भेजें',days_h:'यह कितने दिनों से है?',
+ verify_h:'कृपया ये विवरण जाँच लें।',verify_p:'मैंने ये बातें नोट की हैं।',confirm:'सब सही है',dx_h:'आपका प्रारंभिक आकलन',care_h:'अभी आप क्या कर सकते हैं',doc_h:'अनुशंसित डॉक्टर',
+ resolved_h:'क्या आपकी समस्या हल हो गई?',yes:'हाँ',no:'नहीं',report_h:'आपकी स्वास्थ्य रिपोर्ट',print:'प्रिंट करें',mail:'ईमेल करें',notify:'फ़ॉलो-अप सूचना',med_h:'दवाइयाँ',done:'समाप्त',
+ d0:'आज',d1:'1–2 दिन',d2:'3–5 दिन',d3:'6+ दिन',p0:'पहचान',p1:'जाँच',p2:'परामर्श',p3:'देखभाल',p4:'रिपोर्ट',back:'वापस'},
+ta:{tagline:'உங்கள் டிஜிட்டல் மருத்துவர்',pick_lang:'உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்',consent:'எனது அளவீடுகளும் அறிகுறிகளும் என் உடல்நல அறிக்கைக்குப் பயன்படுத்தப்படுவதற்கு ஒப்புக்கொள்கிறேன்.',start:'தொடங்கு',
+ login_h:'வரவேற்கிறோம். உங்கள் உடல்நலப் பதிவைக் கண்டுபிடிப்போம்.',id_l:'நோயாளி எண் அல்லது மொபைல் எண்',otp_l:'பதிவு செய்த மொபைலுக்கு அனுப்பிய OTP',send_otp:'OTP அனுப்பு',verify:'சரிபார்',new_user:'நான் பதிவு செய்யவில்லை',
+ reg_h:'புதிய கணக்கை உருவாக்கவும்',name:'உங்கள் பெயர்',dob:'பிறந்த தேதி',mobile:'மொபைல் எண்',gender:'பாலினம்',height:'உயரம் (செ.மீ)',register:'பதிவு செய்',your_id:'இது உங்கள் நோயாளி எண்',continue:'தொடரவும்',
+ wear_h:'வழிகாட்டியபடி கீழே உள்ள கருவிகளை அணியுங்கள்.',wear_p:'ஐந்து சிறிய படிகள். ஒவ்வொன்றிலும் நான் வழிகாட்டுவேன்.',
+ ox_h:'ஆக்சிமீட்டரை மாட்டுங்கள்',ox_d:'ஆள்காட்டி விரலை கிளிப்பில் வைத்து அசையாமல் இருங்கள்.',temp_h:'தெர்மல் ஸ்கேனர் முன் நிற்கவும்',temp_d:'நெற்றியை ஸ்கேனரை நோக்கி, சுமார் 10 செ.மீ தூரத்தில் வைக்கவும்.',
+ bp_h:'பிபி இயந்திரத்தை அணியுங்கள்',bp_d:'இடது கையில் கஃப் கட்டி, கையை இதய மட்டத்தில் வைக்கவும்.',wt_h:'எடை இயந்திரத்தில் நிற்கவும்',wt_d:'செருப்பு இல்லாமல் நேராக நிற்கவும்.',
+ ecg_h:'இதை உங்கள் மார்பில் சரியாக ஒட்டவும்',ecg_d:'ஒட்டும் பேட்சை மார்பின் இடப்பக்கம் வைக்கவும்.',
+ measure:'அளவிடத் தொடங்கு',measuring:'அளவிடுகிறேன்…',next:'அடுத்து',crunch:'உங்கள் தரவை ஆராய்கிறேன்…',
+ hello_h:'வணக்கம்! நீங்கள் எப்படி உணர்கிறீர்கள் என்று சொல்லுங்கள்.',hello_p:'அறிகுறிகளை எழுதுங்கள் அல்லது கீழே தேர்ந்தெடுங்கள்.',send:'அனுப்பு',days_h:'இது எத்தனை நாட்களாக உள்ளது?',
+ verify_h:'இந்த விவரங்களைச் சரிபார்க்கவும்.',verify_p:'இவற்றை நான் குறித்துக்கொண்டேன்.',confirm:'எல்லாம் சரி',dx_h:'உங்கள் ஆரம்பகட்ட மதிப்பீடு',care_h:'இப்போது நீங்கள் செய்யக்கூடியவை',doc_h:'பரிந்துரைக்கப்பட்ட மருத்துவர்',
+ resolved_h:'உங்கள் பிரச்சினை தீர்ந்ததா?',yes:'ஆம்',no:'இல்லை',report_h:'உங்கள் உடல்நல அறிக்கை',print:'அச்சிடு',mail:'மின்னஞ்சல்',notify:'பின்தொடர் அறிவிப்பு',med_h:'மருந்துகள்',done:'முடிந்தது',
+ d0:'இன்று',d1:'1–2 நாட்கள்',d2:'3–5 நாட்கள்',d3:'6+ நாட்கள்',p0:'அடையாளம்',p1:'அளவீடு',p2:'ஆலோசனை',p3:'பராமரிப்பு',p4:'அறிக்கை',back:'பின்'}
+};
+const SYM=[['fever','Fever','बुखार','காய்ச்சல்'],['cough','Cough','खांसी','இருமல்'],['headache','Headache','सिरदर्द','தலைவலி'],['ache','Body ache','बदन दर्द','உடல்வலி'],
+ ['throat','Sore throat','गले में खराश','தொண்டை வலி'],['cold','Cold / runny nose','सर्दी-जुकाम','சளி'],['breath','Breathlessness','सांस फूलना','மூச்சுத் திணறல்'],
+ ['chest','Chest pain','सीने में दर्द','நெஞ்சு வலி'],['nausea','Nausea / stomach pain','मतली / पेट दर्द','குமட்டல் / வயிற்று வலி'],['dizzy','Dizziness','चक्कर','தலைச்சுற்றல்']];
+const KW={fever:['fever','temperature','bukhar','hot'],cough:['cough','khansi'],headache:['headache','head ache','head pain'],ache:['body ache','body pain','aching','weak','tired','fatigue'],
+ throat:['throat'],cold:['runny nose','cold','sneez','blocked nose'],breath:['breath','wheez'],chest:['chest pain','chest tight'],nausea:['nausea','vomit','loose motion','diarrh','stomach'],dizzy:['dizz','giddy']};
+const t=k=>(L[S.lang]&&L[S.lang][k])||L.en[k]||k;
+const symLabel=id=>{const r=SYM.find(x=>x[0]===id);return r?r[S.lang==='hi'?2:S.lang==='ta'?3:1]:id};
+
+/* ---------- state ---------- */
+const fresh=()=>({lang:S0.lang||'en',screen:'welcome',hist:[],user:{name:'Anaya Verma',id:'',dob:'1999-04-12',mobile:'',gender:'Female',height:162,email:''},
+  returning:false,otpSent:false,loginId:'',consent:false,vitals:{},busy:false,symptoms:[],text:'',days:null,conds:[],dx:null,doctor:null,token:null,
+  resolved:null,wearable:false,printed:false,mailed:false,notify:'24h',notified:false,scenario:S0.scenario||'viral'});
+const S0={};
+let S=fresh();
+let apiPatient=null, apiAssessment=null;
+let timers=[],raf=0,tick=0;
+const clearT=()=>{timers.forEach(clearTimeout);timers=[];clearInterval(tick);cancelAnimationFrame(raf)};
+const after=(ms,fn)=>timers.push(setTimeout(fn,ms));
+
+const NEXT={welcome:'login',login:'precheck',register:'idcard',idcard:'precheck',precheck:'intro',intro:'ox',ox:'temp',temp:'bp',bp:'wt',wt:'ecg',ecg:'crunch1',crunch1:'talk',talk:'days',days:'verify',verify:'crunch2',crunch2:'dx',dx:'care',care:'doctor',doctor:'resolved',opd:'report',report:'medicine',medicine:'followup',followup:'done'};
+const PH={welcome:0,login:0,register:0,idcard:0,precheck:1,intro:1,ox:1,temp:1,bp:1,wt:1,ecg:1,crunch1:1,talk:2,days:2,verify:2,crunch2:2,dx:3,care:3,doctor:3,resolved:3,opd:3,report:4,medicine:4,followup:4,done:4};
+function go(n,noHist){if(!noHist&&S.screen!==n)S.hist.push(S.screen);S.screen=n;render()}
+function next(){let n=NEXT[S.screen];if(S.screen==='crunch1'&&S.symptoms.length)n='days';if(S.screen==='dx'&&S.dx.emergency)n='doctor';if(S.screen==='doctor'&&S.dx.emergency)n='opd';go(n)}
+function back(){const p=S.hist.pop();if(p)go(p,true)}
+
+/* ---------- helpers ---------- */
+const age=()=>{const d=new Date(S.user.dob);if(isNaN(d))return '–';return Math.floor((Date.now()-d)/31557600000)};
+const avatar=()=>`<svg class="avatar" viewBox="0 0 100 100" aria-hidden="true"><circle class="halo" cx="50" cy="50" r="48"/><circle class="face" cx="50" cy="56" r="30"/><rect class="plus" x="42" y="14" width="16" height="7" rx="2"/><rect class="plus" x="46.5" y="9.5" width="7" height="16" rx="2"/><circle class="eye" cx="40" cy="54" r="3.4"/><circle class="eye" cx="60" cy="54" r="3.4"/><path class="mouth" d="M40 67q10 8 20 0"/><path class="steth" d="M26 90q24 14 48 0"/></svg>`;
+const say=h=>`<div class="say fade">${avatar()}<div class="bubble">${h}</div></div>`;
+const backBtn=()=>S.hist.length?`<button class="back" data-act="back">← ${t('back')}</button>`:'';
+const pill=(lv,tx)=>`<span class="pill ${lv}">${tx}</span>`;
+const ST={spo2:v=>v>=95?['ok','Normal']:v>=92?['warn','Low']:['crit','Very low'],hr:v=>v<60?['warn','Slow']:v<=100?['ok','Normal']:v<=120?['warn','Fast']:['crit','Very fast'],
+ temp:v=>v>=39.5?['crit','High fever']:v>=37.8?['warn','Fever']:['ok','Normal'],bp:(s,d)=>s>=180||d>=120?['crit','Very high']:s>=140||d>=90?['warn','High']:s<90||d<60?['warn','Low']:['ok','Normal'],
+ bmi:v=>v<18.5?['warn','Under']:v<25?['ok','Normal']:v<30?['warn','Over']:['warn','High']};
+const F=c=>(c*9/5+32).toFixed(1);
+const IC={ox:'<rect x="12" y="24" width="40" height="22" rx="9"/><path d="M20 35h7l3-6 4 12 3-6h5"/>',temp:'<path d="M27 12a5 5 0 0 1 10 0v24a11 11 0 1 1-10 0z"/><path d="M32 22v20"/><circle cx="32" cy="46" r="3.5" fill="currentColor"/>',
+ bp:'<rect x="8" y="22" width="30" height="22" rx="5"/><path d="M38 33h10a8 8 0 0 1 8 8v4"/><circle cx="52" cy="50" r="4"/>',wt:'<rect x="12" y="12" width="40" height="40" rx="10"/><path d="M22 28a10 10 0 0 1 20 0"/><path d="M32 28l4-6"/>',
+ ecg:'<path d="M4 34h13l5-15 8 28 6-21 4 8h20"/>'};
+const icon=(k,c='ic')=>`<svg class="${c}" viewBox="0 0 64 64" aria-hidden="true">${IC[k]}</svg>`;
+const hash=s=>{let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0};
+function qr(seed){const n=21,cell=4.6;let a=hash(seed)||1;const rnd=()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+ let r='';const fin=(x,y)=>`<rect x="${x*cell}" y="${y*cell}" width="${7*cell}" height="${7*cell}" fill="#0F2A2C"/><rect x="${(x+1)*cell}" y="${(y+1)*cell}" width="${5*cell}" height="${5*cell}" fill="#fff"/><rect x="${(x+2)*cell}" y="${(y+2)*cell}" width="${3*cell}" height="${3*cell}" fill="#0F2A2C"/>`;
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++){const inF=(x<8&&y<8)||(x>12&&y<8)||(x<8&&y>12);if(!inF&&rnd()>.52)r+=`<rect x="${x*cell}" y="${y*cell}" width="${cell}" height="${cell}" fill="#0F2A2C"/>`}
+ return `<svg class="qr" viewBox="0 0 ${n*cell} ${n*cell}" role="img" aria-label="Sample code">${r}${fin(0,0)}${fin(14,0)}${fin(0,14)}</svg>`}
+
+/* ---------- vitals simulation ---------- */
+const SC={viral:{spo2:97,hr:98,temp:38.9,sys:114,dia:74,wt:61},normal:{spo2:98,hr:72,temp:36.8,sys:118,dia:77,wt:61},htn:{spo2:97,hr:86,temp:36.9,sys:158,dia:99,wt:61},low:{spo2:89,hr:116,temp:38.4,sys:126,dia:82,wt:61}};
+const SCN={viral:'Viral fever',normal:'Healthy',htn:'High BP',low:'Low oxygen'};
+const jit=(v,a,d=0)=>+(v+(Math.random()*2-1)*a).toFixed(d);
+function reading(k){const b=SC[S.scenario];
+ if(k==='ox')return{spo2:Math.min(100,Math.round(jit(b.spo2,1))),hr:Math.round(jit(b.hr,3))};
+ if(k==='temp')return{temp:jit(b.temp,.15,1)};
+ if(k==='bp')return{sys:Math.round(jit(b.sys,3)),dia:Math.round(jit(b.dia,2))};
+ if(k==='wt'){const w=jit(b.wt,.4,1),h=S.user.height/100;return{wt:w,bmi:+(w/(h*h)).toFixed(1)}}
+ const hr=Math.round(jit(b.hr,2));return{hr,rhythm:hr>100?'Sinus tachycardia':'Normal sinus'}}
+function readingHtml(k,v){
+ if(k==='ox'){const a=ST.spo2(v.spo2),b=ST.hr(v.hr);return `<div class="reading"><div><span class="unit">SpO₂</span><span class="big-n">${v.spo2}<span class="unit"> %</span></span>${pill(...a)}</div><div><span class="unit">Pulse</span><span class="big-n">${v.hr}<span class="unit"> bpm</span></span>${pill(...b)}</div></div>`}
+ if(k==='temp'){const a=ST.temp(v.temp);return `<div class="reading"><div><span class="unit">Skin temperature</span><span class="big-n">${v.temp}<span class="unit"> °C</span></span>${pill(...a)}</div><div><span class="unit">In Fahrenheit</span><span class="big-n">${F(v.temp)}<span class="unit"> °F</span></span></div></div>`}
+ if(k==='bp'){const a=ST.bp(v.sys,v.dia);return `<div class="reading"><div><span class="unit">Blood pressure</span><span class="big-n">${v.sys}/${v.dia}<span class="unit"> mmHg</span></span>${pill(...a)}</div></div>`}
+ if(k==='wt'){const a=ST.bmi(v.bmi);return `<div class="reading"><div><span class="unit">Weight</span><span class="big-n">${v.wt}<span class="unit"> kg</span></span></div><div><span class="unit">BMI at ${S.user.height} cm</span><span class="big-n">${v.bmi}</span>${pill(...a)}</div></div>`}
+ const a=ST.hr(v.hr);return `<div class="reading"><div><span class="unit">Heart rate</span><span class="big-n">${v.hr}<span class="unit"> bpm</span></span>${pill(...a)}</div><div><span class="unit">Rhythm</span><span class="big-n" style="font-size:1.3rem">${v.rhythm}</span></div></div>`}
+
+/* ---------- diagnosis ---------- */
+/* Models trained offline from the supplied CSVs (train_models.py). Numbers are Naive Bayes log-probabilities and logistic coefficients. */
+const MODEL={"nb":{"classes":["Acne","Allergic Rhinitis","Alzheimer's Disease","Anemia","Anxiety Disorders","Appendicitis","Asthma","Atherosclerosis","Autism Spectrum Disorder","Bipolar Disorder","Bladder Cancer","Brain Tumor","Breast Cancer","Bronchitis","COPD","Cataracts","Cerebral Palsy","Chickenpox","Cholecystitis","Cholera","Chronic Kidney Disease","Cirrhosis","Colorectal Cancer","Common Cold","Conjunctivitis","Coronary Artery Disease","Crohn's Disease","Cystic Fibrosis","Dementia","Dengue Fever","Depression","Diabetes","Diverticulitis","Down Syndrome","Ear Infection","Eating Disorders","Ebola Virus","Eczema","Endometriosis","Epilepsy","Esophageal Cancer","Fibromyalgia","Gastroenteritis","Glaucoma","Gout","HIV/AIDS","Heart Attack","Hemophilia","Hemorrhoids","Hepatitis","Hepatitis B","Hyperglycemia","Hypertension","Hypertensive Heart Disease","Hyperthyroidism","Hypoglycemia","Hypothyroidism","Influenza","Kidney Cancer","Kidney Disease","Klinefelter Syndrome","Liver Cancer","Liver Disease","Lung Cancer","Lupus","Lyme Disease","Lymphoma","Malaria","Marfan Syndrome","Measles","Melanoma","Migraine","Multiple Sclerosis","Mumps","Muscular Dystrophy","OCD","Osteoarthritis","Osteomyelitis","Osteoporosis","Ovarian Cancer","PCOS","Pancreatic Cancer","Pancreatitis","Parkinson's Disease","Pneumocystis Pneumonia","Pneumonia","Pneumothorax","Polio","Prader-Willi Syndrome","Prostate Cancer","Psoriasis","Rabies","Rheumatoid Arthritis","Rubella","Schizophrenia","Scoliosis","Sepsis","Sickle Cell Anemia","Sinusitis","Sleep Apnea","Spina Bifida","Stroke","Testicular Cancer","Tetanus","Thyroid Cancer","Tonsillitis","Tourette Syndrome","Tuberculosis","Turner Syndrome","Typhoid Fever","Ulcerative Colitis","Urinary Tract Infection","Williams Syndrome","Zika Virus"],"alpha":0.1,"prior":[-5.7919,-4.0789,-4.258,-5.7919,-4.0789,-5.7919,-2.7474,-5.7919,-5.7919,-5.7919,-5.7919,-5.7919,-5.7919,-3.7954,-4.258,-5.7919,-5.7919,-5.1453,-5.7919,-5.1453,-5.7919,-5.7919,-5.7919,-4.0789,-5.7919,-4.258,-4.258,-5.7919,-5.7919,-5.1453,-4.0789,-3.5747,-5.7919,-5.7919,-5.7919,-5.7919,-5.1453,-4.0789,-5.7919,-5.7919,-5.7919,-5.7919,-4.0789,-5.7919,-5.7919,-5.1453,-5.7919,-5.1453,-5.7919,-4.7558,-5.1453,-5.7919,-3.5747,-5.7919,-3.9271,-5.7919,-3.9271,-3.7954,-4.0789,-4.258,-5.1453,-4.0789,-4.258,-4.7558,-5.7919,-5.1453,-5.7919,-5.1453,-5.7919,-5.1453,-5.7919,-3.5747,-4.258,-5.1453,-5.7919,-5.7919,-4.0789,-5.7919,-3.241,-5.7919,-5.7919,-5.7919,-4.258,-4.258,-5.7919,-3.7954,-5.7919,-5.7919,-5.7919,-5.7919,-4.258,-5.1453,-4.0789,-5.1453,-5.7919,-5.7919,-5.7919,-5.7919,-5.7919,-5.7919,-5.7919,-3.1084,-5.7919,-5.1453,-5.7919,-5.7919,-5.7919,-4.7558,-5.1453,-5.1453,-4.258,-3.7954,-5.7919,-5.1453],"feats":[{"name":"Fever","levels":["No","Yes"],"logp":[[-0.087,-2.4849],[-0.4136,-1.0826],[-0.5173,-0.9067],[-0.087,-2.4849],[-0.6931,-0.6931],[-2.4849,-0.087],[-1.5149,-0.2482],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-1.3622,-0.2958],[-0.9067,-0.5173],[-0.087,-2.4849],[-0.087,-2.4849],[-0.0465,-3.091],[-0.087,-2.4849],[-3.091,-0.0465],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-1.0826,-0.4136],[-0.087,-2.4849],[-0.5173,-0.9067],[-0.9067,-0.5173],[-0.087,-2.4849],[-0.087,-2.4849],[-3.091,-0.0465],[-0.4136,-1.0826],[-0.6931,-0.6931],[-0.087,-2.4849],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-3.091,-0.0465],[-0.4136,-1.0826],[-2.4849,-0.087],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-1.0826,-0.4136],[-0.087,-2.4849],[-2.4849,-0.087],[-3.091,-0.0465],[-2.4849,-0.087],[-0.0465,-3.091],[-0.087,-2.4849],[-3.4657,-0.0317],[-0.0465,-3.091],[-0.087,-2.4849],[-0.6931,-0.6931],[-0.087,-2.4849],[-0.5631,-0.8427],[-0.087,-2.4849],[-0.5631,-0.8427],[-1.3622,-0.2958],[-0.4136,-1.0826],[-0.9067,-0.5173],[-0.0465,-3.091],[-1.0826,-0.4136],[-0.5173,-0.9067],[-3.4657,-0.0317],[-0.087,-2.4849],[-3.091,-0.0465],[-0.087,-2.4849],[-3.091,-0.0465],[-0.087,-2.4849],[-3.091,-0.0465],[-2.4849,-0.087],[-0.6931,-0.6931],[-0.5173,-0.9067],[-0.0465,-3.091],[-0.087,-2.4849],[-0.087,-2.4849],[-0.6931,-0.6931],[-0.087,-2.4849],[-0.6931,-0.6931],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-0.5173,-0.9067],[-0.5173,-0.9067],[-2.4849,-0.087],[-2.0088,-0.144],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-2.4849,-0.087],[-0.5173,-0.9067],[-3.091,-0.0465],[-0.4136,-1.0826],[-3.091,-0.0465],[-0.087,-2.4849],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-1.374,-0.2918],[-0.087,-2.4849],[-0.0465,-3.091],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-3.4657,-0.0317],[-0.0465,-3.091],[-0.0465,-3.091],[-0.5173,-0.9067],[-0.9727,-0.4749],[-0.087,-2.4849],[-0.0465,-3.091]]},{"name":"Cough","levels":["No","Yes"],"logp":[[-0.087,-2.4849],[-1.0826,-0.4136],[-0.5173,-0.9067],[-0.087,-2.4849],[-0.6931,-0.6931],[-0.087,-2.4849],[-1.3359,-0.3051],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-1.3622,-0.2958],[-0.9067,-0.5173],[-0.087,-2.4849],[-0.087,-2.4849],[-3.091,-0.0465],[-0.087,-2.4849],[-0.0465,-3.091],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.6931,-0.6931],[-2.4849,-0.087],[-0.5173,-0.9067],[-0.5173,-0.9067],[-0.087,-2.4849],[-0.087,-2.4849],[-0.0465,-3.091],[-0.4136,-1.0826],[-0.6931,-0.6931],[-0.087,-2.4849],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-3.091,-0.0465],[-1.0826,-0.4136],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-1.0826,-0.4136],[-0.087,-2.4849],[-0.087,-2.4849],[-0.0465,-3.091],[-2.4849,-0.087],[-0.0465,-3.091],[-0.087,-2.4849],[-0.4212,-1.0678],[-3.091,-0.0465],[-0.087,-2.4849],[-0.5141,-0.9114],[-0.087,-2.4849],[-1.2321,-0.3448],[-0.087,-2.4849],[-0.5631,-0.8427],[-1.3622,-0.2958],[-0.6931,-0.6931],[-0.9067,-0.5173],[-0.0465,-3.091],[-1.0826,-0.4136],[-0.9067,-0.5173],[-0.4212,-1.0678],[-2.4849,-0.087],[-0.0465,-3.091],[-2.4849,-0.087],[-0.0465,-3.091],[-0.087,-2.4849],[-3.091,-0.0465],[-0.087,-2.4849],[-0.6931,-0.6931],[-0.5173,-0.9067],[-0.0465,-3.091],[-0.087,-2.4849],[-0.087,-2.4849],[-0.6931,-0.6931],[-0.087,-2.4849],[-0.5614,-0.845],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-0.9067,-0.5173],[-0.5173,-0.9067],[-2.4849,-0.087],[-2.0088,-0.144],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-2.4849,-0.087],[-0.9067,-0.5173],[-3.091,-0.0465],[-0.6931,-0.6931],[-0.0465,-3.091],[-2.4849,-0.087],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-0.087,-2.4849],[-0.4725,-0.9767],[-0.087,-2.4849],[-0.0465,-3.091],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-3.4657,-0.0317],[-0.0465,-3.091],[-3.091,-0.0465],[-0.9067,-0.5173],[-0.6931,-0.6931],[-0.087,-2.4849],[-3.091,-0.0465]]},{"name":"Fatigue","levels":["No","Yes"],"logp":[[-2.4849,-0.087],[-1.0826,-0.4136],[-0.9067,-0.5173],[-2.4849,-0.087],[-0.6931,-0.6931],[-2.4849,-0.087],[-0.6509,-0.7372],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-1.3622,-0.2958],[-3.9512,-0.0194],[-2.4849,-0.087],[-2.4849,-0.087],[-0.0465,-3.091],[-2.4849,-0.087],[-3.091,-0.0465],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-1.0826,-0.4136],[-0.087,-2.4849],[-0.9067,-0.5173],[-3.9512,-0.0194],[-2.4849,-0.087],[-2.4849,-0.087],[-3.091,-0.0465],[-1.0826,-0.4136],[-0.9114,-0.5141],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-3.091,-0.0465],[-0.4136,-1.0826],[-0.087,-2.4849],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-1.0826,-0.4136],[-2.4849,-0.087],[-2.4849,-0.087],[-0.0465,-3.091],[-2.4849,-0.087],[-3.091,-0.0465],[-0.087,-2.4849],[-3.4657,-0.0317],[-3.091,-0.0465],[-2.4849,-0.087],[-0.6931,-0.6931],[-2.4849,-0.087],[-1.2321,-0.3448],[-2.4849,-0.087],[-4.2767,-0.014],[-1.3622,-0.2958],[-1.0826,-0.4136],[-0.9067,-0.5173],[-3.091,-0.0465],[-1.7292,-0.1953],[-0.9067,-0.5173],[-3.4657,-0.0317],[-2.4849,-0.087],[-0.0465,-3.091],[-0.087,-2.4849],[-0.0465,-3.091],[-2.4849,-0.087],[-0.0465,-3.091],[-2.4849,-0.087],[-0.6931,-0.6931],[-0.9067,-0.5173],[-3.091,-0.0465],[-2.4849,-0.087],[-2.4849,-0.087],[-1.0826,-0.4136],[-2.4849,-0.087],[-0.845,-0.5614],[-2.4849,-0.087],[-0.087,-2.4849],[-2.4849,-0.087],[-0.9067,-0.5173],[-0.9067,-0.5173],[-2.4849,-0.087],[-2.0088,-0.144],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-0.087,-2.4849],[-0.5173,-0.9067],[-0.0465,-3.091],[-1.0826,-0.4136],[-3.091,-0.0465],[-2.4849,-0.087],[-0.087,-2.4849],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-1.6536,-0.2124],[-2.4849,-0.087],[-3.091,-0.0465],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-3.4657,-0.0317],[-3.091,-0.0465],[-0.0465,-3.091],[-0.9067,-0.5173],[-0.9727,-0.4749],[-2.4849,-0.087],[-3.091,-0.0465]]},{"name":"Difficulty Breathing","levels":["No","Yes"],"logp":[[-0.087,-2.4849],[-0.0163,-4.1271],[-0.0194,-3.9512],[-0.087,-2.4849],[-0.1953,-1.7292],[-0.087,-2.4849],[-3.0488,-0.0486],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-4.4067,-0.0123],[-3.9512,-0.0194],[-0.087,-2.4849],[-2.4849,-0.087],[-0.0465,-3.091],[-0.087,-2.4849],[-3.091,-0.0465],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.4136,-1.0826],[-0.087,-2.4849],[-0.0194,-3.9512],[-0.0194,-3.9512],[-2.4849,-0.087],[-0.087,-2.4849],[-0.0465,-3.091],[-0.4136,-1.0826],[-0.1141,-2.2271],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-3.091,-0.0465],[-0.0163,-4.1271],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.4136,-1.0826],[-0.087,-2.4849],[-0.087,-2.4849],[-0.0465,-3.091],[-2.4849,-0.087],[-0.0465,-3.091],[-0.087,-2.4849],[-0.4212,-1.0678],[-0.0465,-3.091],[-0.087,-2.4849],[-0.0099,-4.625],[-0.087,-2.4849],[-0.014,-4.2767],[-0.087,-2.4849],[-0.014,-4.2767],[-0.9727,-0.4749],[-0.1953,-1.7292],[-0.5173,-0.9067],[-0.0465,-3.091],[-0.6931,-0.6931],[-0.5173,-0.9067],[-0.4212,-1.0678],[-0.087,-2.4849],[-0.0465,-3.091],[-0.087,-2.4849],[-0.0465,-3.091],[-0.087,-2.4849],[-0.0465,-3.091],[-0.087,-2.4849],[-0.1141,-2.2271],[-0.0194,-3.9512],[-0.0465,-3.091],[-0.087,-2.4849],[-0.087,-2.4849],[-0.4136,-1.0826],[-0.087,-2.4849],[-0.16,-1.9113],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.2377,-1.5533],[-0.0194,-3.9512],[-0.087,-2.4849],[-4.4067,-0.0123],[-2.4849,-0.087],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.0194,-3.9512],[-0.0465,-3.091],[-0.1953,-1.7292],[-0.0465,-3.091],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-0.1388,-2.0431],[-0.087,-2.4849],[-0.0465,-3.091],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-1.0678,-0.4212],[-0.0465,-3.091],[-0.0465,-3.091],[-0.0194,-3.9512],[-0.2958,-1.3622],[-0.087,-2.4849],[-0.0465,-3.091]]},{"name":"AgeBand","levels":["<30","30-39","40-49","50-59","60+"],"logp":[[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-1.7765,-1.1299,-1.1299,-1.7765,-4.1744],[-4.0073,-4.0073,-4.0073,-4.0073,-0.0755],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-1.7765,-1.7765,-1.1299,-1.1299,-4.1744],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-2.0256,-0.8445,-1.0651,-3.0617,-3.0617],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-4.4427,-1.0087,-2.0448,-1.0087,-2.0448],[-4.0073,-1.6094,-4.0073,-4.0073,-0.2938],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-3.2189,-3.2189,-0.1744,-3.2189,-3.2189],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-3.2189,-3.2189,-3.2189,-0.1744,-3.2189],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-1.1299,-1.1299,-1.7765,-1.7765,-4.1744],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-4.0073,-4.0073,-1.6094,-0.9628,-0.9628],[-4.0073,-4.0073,-0.5733,-0.9628,-4.0073],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-3.2189,-0.1744,-3.2189,-3.2189,-3.2189],[-1.7765,-1.1299,-1.1299,-1.7765,-4.1744],[-2.2561,-2.2561,-0.9404,-1.6094,-1.6094],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-3.2189,-3.2189,-3.2189,-0.1744,-3.2189],[-1.1299,-0.7404,-4.1744,-1.7765,-4.1744],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-1.7765,-0.7404,-1.7765,-1.7765,-4.1744],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-3.2189,-3.2189,-3.2189,-0.1744,-3.2189],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-3.2189,-3.2189,-0.821,-3.2189,-0.821],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-3.5553,-1.1575,-0.5108,-3.5553,-3.5553],[-3.2189,-3.2189,-3.2189,-3.2189,-0.1744],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-4.654,-2.2561,-1.6094,-0.9404,-1.22],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-1.273,-0.8835,-1.9196,-4.3175,-1.9196],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-4.3175,-4.3175,-0.3857,-1.273,-4.3175],[-1.0087,-1.0087,-2.0448,-2.0448,-4.4427],[-4.1744,-1.1299,-1.1299,-1.7765,-1.7765],[-4.0073,-1.6094,-0.9628,-1.6094,-1.6094],[-3.2189,-0.821,-3.2189,-0.821,-3.2189],[-1.7765,-1.1299,-1.7765,-1.7765,-1.7765],[-4.0073,-0.9628,-0.9628,-1.6094,-4.0073],[-3.5553,-3.5553,-1.1575,-3.5553,-0.5108],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-3.2189,-3.2189,-3.2189,-0.1744,-3.2189],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-3.2189,-0.1744,-3.2189,-3.2189,-3.2189],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-3.2189,-3.2189,-3.2189,-3.2189,-0.1744],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-4.654,-0.5431,-1.6094,-2.2561,-2.2561],[-4.0073,-1.6094,-0.9628,-0.9628,-4.0073],[-3.2189,-3.2189,-3.2189,-3.2189,-0.1744],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-4.1744,-1.7765,-0.7404,-1.7765,-1.7765],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-4.9767,-1.9322,-2.5788,-1.0449,-0.8659],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-1.6094,-1.6094,-1.6094,-1.6094,-1.6094],[-4.0073,-4.0073,-4.0073,-0.9628,-0.5733],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-4.4427,-0.7291,-1.0087,-2.0448,-4.4427],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-4.0073,-0.9628,-0.5733,-4.0073,-4.0073],[-3.2189,-3.2189,-0.1744,-3.2189,-3.2189],[-1.7765,-1.1299,-1.7765,-1.7765,-1.7765],[-3.2189,-0.1744,-3.2189,-3.2189,-3.2189],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-2.7081,-2.7081,-0.3102,-2.7081,-2.7081],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-2.7081,-2.7081,-2.7081,-0.3102,-2.7081],[-2.7081,-0.3102,-2.7081,-2.7081,-2.7081],[-2.7081,-2.7081,-2.0614,-2.7081,-0.3964],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-3.2189,-3.2189,-0.1744,-3.2189,-3.2189],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-3.5553,-3.5553,-0.5108,-3.5553,-1.1575],[-3.2189,-3.2189,-0.1744,-3.2189,-3.2189],[-3.2189,-3.2189,-3.2189,-0.1744,-3.2189],[-4.0073,-0.2938,-4.0073,-1.6094,-4.0073],[-2.0448,-1.0087,-1.3981,-2.0448,-2.0448],[-2.7081,-2.7081,-2.7081,-2.7081,-0.3102],[-3.2189,-3.2189,-0.1744,-3.2189,-3.2189]]},{"name":"Gender","levels":["Female","Male"],"logp":[[-2.4849,-0.087],[-0.6931,-0.6931],[-0.5173,-0.9067],[-2.4849,-0.087],[-1.0826,-0.4136],[-2.4849,-0.087],[-0.7372,-0.6509],[-2.4849,-0.087],[-2.4849,-0.087],[-0.087,-2.4849],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-1.3622,-0.2958],[-0.9067,-0.5173],[-0.087,-2.4849],[-0.087,-2.4849],[-3.091,-0.0465],[-2.4849,-0.087],[-0.0465,-3.091],[-0.087,-2.4849],[-0.087,-2.4849],[-0.087,-2.4849],[-0.6931,-0.6931],[-0.087,-2.4849],[-0.5173,-0.9067],[-0.9067,-0.5173],[-2.4849,-0.087],[-0.087,-2.4849],[-0.0465,-3.091],[-0.4136,-1.0826],[-0.9114,-0.5141],[-0.087,-2.4849],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-3.091,-0.0465],[-0.6931,-0.6931],[-2.4849,-0.087],[-2.4849,-0.087],[-2.4849,-0.087],[-0.087,-2.4849],[-1.0826,-0.4136],[-2.4849,-0.087],[-0.087,-2.4849],[-0.0465,-3.091],[-0.087,-2.4849],[-0.0465,-3.091],[-0.087,-2.4849],[-0.4212,-1.0678],[-3.091,-0.0465],[-2.4849,-0.087],[-0.5141,-0.9114],[-0.087,-2.4849],[-0.8427,-0.5631],[-0.087,-2.4849],[-0.5631,-0.8427],[-0.4749,-0.9727],[-1.0826,-0.4136],[-0.5173,-0.9067],[-0.0465,-3.091],[-0.4136,-1.0826],[-0.9067,-0.5173],[-0.4212,-1.0678],[-0.087,-2.4849],[-3.091,-0.0465],[-0.087,-2.4849],[-3.091,-0.0465],[-2.4849,-0.087],[-0.0465,-3.091],[-2.4849,-0.087],[-0.5141,-0.9114],[-0.5173,-0.9067],[-3.091,-0.0465],[-2.4849,-0.087],[-2.4849,-0.087],[-1.0826,-0.4136],[-2.4849,-0.087],[-0.845,-0.5614],[-2.4849,-0.087],[-0.087,-2.4849],[-0.087,-2.4849],[-0.9067,-0.5173],[-0.9067,-0.5173],[-0.087,-2.4849],[-0.4749,-0.9727],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-2.4849,-0.087],[-0.5173,-0.9067],[-0.0465,-3.091],[-0.4136,-1.0826],[-0.0465,-3.091],[-2.4849,-0.087],[-0.087,-2.4849],[-2.4849,-0.087],[-0.087,-2.4849],[-2.4849,-0.087],[-2.4849,-0.087],[-0.087,-2.4849],[-0.5767,-0.8249],[-0.087,-2.4849],[-3.091,-0.0465],[-0.087,-2.4849],[-0.087,-2.4849],[-2.4849,-0.087],[-1.0678,-0.4212],[-3.091,-0.0465],[-3.091,-0.0465],[-0.5173,-0.9067],[-0.6931,-0.6931],[-0.087,-2.4849],[-0.0465,-3.091]]},{"name":"Blood Pressure","levels":["Low","Normal","High"],"logp":[[-2.5649,-0.1671,-2.5649],[-1.7452,-1.0986,-0.7091],[-3.9703,-0.9258,-0.5363],[-2.5649,-0.1671,-2.5649],[-1.7452,-0.7091,-1.0986],[-2.5649,-0.1671,-2.5649],[-3.0531,-0.3094,-1.5192],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-2.0209,-2.0209,-0.308],[-3.9703,-0.5363,-0.9258],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-3.1355,-0.091,-3.1355],[-2.5649,-0.1671,-2.5649],[-3.1355,-3.1355,-0.091],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-1.7452,-1.0986,-0.7091],[-2.5649,-2.5649,-0.1671],[-3.9703,-0.9258,-0.5363],[-3.9703,-0.9258,-0.5363],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-3.1355,-0.091,-3.1355],[-1.7452,-1.0986,-0.7091],[-2.2368,-0.7029,-0.9212],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-3.1355,-0.091,-3.1355],[-4.1431,-1.0986,-0.4296],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-1.7452,-1.0986,-0.7091],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-3.1355,-3.1355,-0.091],[-2.5649,-2.5649,-0.1671],[-3.1355,-0.091,-3.1355],[-2.5649,-2.5649,-0.1671],[-3.4965,-3.4965,-0.0625],[-3.1355,-0.091,-3.1355],[-2.5649,-0.1671,-2.5649],[-2.2368,-0.9212,-0.7029],[-2.5649,-2.5649,-0.1671],[-4.2905,-0.5769,-0.8565],[-2.5649,-2.5649,-0.1671],[-4.2905,-0.8565,-0.5769],[-2.0209,-0.487,-1.3743],[-1.7452,-0.7091,-1.0986],[-1.5724,-0.9258,-0.9258],[-3.1355,-0.091,-3.1355],[-4.1431,-1.0986,-0.4296],[-1.5724,-0.9258,-0.9258],[-3.4965,-0.452,-1.0986],[-2.5649,-2.5649,-0.1671],[-3.1355,-0.091,-3.1355],[-2.5649,-0.1671,-2.5649],[-3.1355,-3.1355,-0.091],[-2.5649,-2.5649,-0.1671],[-3.1355,-3.1355,-0.091],[-2.5649,-2.5649,-0.1671],[-2.2368,-0.7029,-0.9212],[-3.9703,-0.9258,-0.5363],[-3.1355,-0.091,-3.1355],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-4.1431,-1.0986,-0.4296],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.852,-0.7002],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-1.5724,-0.9258,-0.9258],[-3.9703,-0.5363,-0.9258],[-2.5649,-2.5649,-0.1671],[-4.4188,-0.487,-0.9849],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-3.9703,-0.5363,-0.9258],[-3.1355,-3.1355,-0.091],[-1.7452,-0.7091,-1.0986],[-3.1355,-3.1355,-0.091],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-5.0938,-1.1619,-0.3842],[-2.5649,-2.5649,-0.1671],[-3.1355,-0.091,-3.1355],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-3.4965,-3.4965,-0.0625],[-3.1355,-3.1355,-0.091],[-3.1355,-0.091,-3.1355],[-3.9703,-0.5363,-0.9258],[-2.0209,-0.9849,-0.7053],[-2.5649,-0.1671,-2.5649],[-3.1355,-3.1355,-0.091]]},{"name":"Cholesterol Level","levels":["Low","Normal","High"],"logp":[[-2.5649,-0.1671,-2.5649],[-1.0986,-0.7091,-1.7452],[-3.9703,-0.9258,-0.5363],[-2.5649,-0.1671,-2.5649],[-1.7452,-0.7091,-1.0986],[-2.5649,-0.1671,-2.5649],[-3.0531,-0.3696,-1.3402],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-4.4188,-0.9849,-0.487],[-3.9703,-1.5724,-0.2567],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-3.1355,-3.1355,-0.091],[-2.5649,-0.1671,-2.5649],[-3.1355,-3.1355,-0.091],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-1.7452,-0.7091,-1.0986],[-2.5649,-2.5649,-0.1671],[-3.9703,-0.9258,-0.5363],[-3.9703,-1.5724,-0.2567],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-3.1355,-0.091,-3.1355],[-1.7452,-1.0986,-0.7091],[-2.2368,-1.5902,-0.372],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-3.1355,-0.091,-3.1355],[-4.1431,-0.7091,-0.7091],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-1.7452,-1.0986,-0.7091],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-3.1355,-3.1355,-0.091],[-2.5649,-2.5649,-0.1671],[-3.1355,-0.091,-3.1355],[-2.5649,-2.5649,-0.1671],[-3.4965,-1.0986,-0.452],[-0.091,-3.1355,-3.1355],[-2.5649,-0.1671,-2.5649],[-1.2007,-0.9212,-1.2007],[-2.5649,-2.5649,-0.1671],[-4.2905,-0.5769,-0.8565],[-2.5649,-2.5649,-0.1671],[-4.2905,-4.2905,-0.0278],[-4.4188,-0.308,-1.3743],[-1.7452,-0.7091,-1.0986],[-1.5724,-0.9258,-0.9258],[-3.1355,-0.091,-3.1355],[-1.7452,-1.0986,-0.7091],[-1.5724,-0.9258,-0.9258],[-1.0986,-3.4965,-0.452],[-2.5649,-2.5649,-0.1671],[-3.1355,-3.1355,-0.091],[-2.5649,-2.5649,-0.1671],[-3.1355,-3.1355,-0.091],[-2.5649,-2.5649,-0.1671],[-3.1355,-0.091,-3.1355],[-2.5649,-0.1671,-2.5649],[-2.2368,-0.7029,-0.9212],[-3.9703,-0.9258,-0.5363],[-3.1355,-3.1355,-0.091],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-1.7452,-0.7091,-1.0986],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.7002,-0.852],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-1.5724,-0.9258,-0.9258],[-0.9258,-0.5363,-3.9703],[-2.5649,-2.5649,-0.1671],[-4.4188,-0.487,-0.9849],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-0.9258,-0.9258,-1.5724],[-3.1355,-0.091,-3.1355],[-1.0986,-1.0986,-1.0986],[-3.1355,-0.091,-3.1355],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-0.1671,-2.5649],[-2.5649,-2.5649,-0.1671],[-2.5649,-0.1671,-2.5649],[-1.6598,-1.6598,-0.4786],[-2.5649,-2.5649,-0.1671],[-3.1355,-3.1355,-0.091],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-2.5649,-2.5649,-0.1671],[-3.4965,-3.4965,-0.0625],[-3.1355,-3.1355,-0.091],[-0.091,-3.1355,-3.1355],[-3.9703,-0.9258,-0.5363],[-2.0209,-0.7053,-0.9849],[-2.5649,-0.1671,-2.5649],[-3.1355,-3.1355,-0.091]]}],"triage":["Influenza","Common Cold","Asthma","Bronchitis","Pneumonia","Sinusitis","Allergic Rhinitis","Gastroenteritis","Urinary Tract Infection","Migraine","Hypertension","Diabetes","Dengue Fever","Malaria","Typhoid Fever","Tuberculosis","Tonsillitis","Anemia","COPD","Hepatitis","Conjunctivitis","Ear Infection","Osteoarthritis","Hypothyroidism","Hyperthyroidism","Chickenpox","Measles","Eczema"],"kiosk_use":[0,1,2,3,4,5,6],"bands":[[0,29,"<30"],[30,39,"30-39"],[40,49,"40-49"],[50,59,"50-59"],[60,200,"60+"]]},"metrics_nb":{"top1":0.09797297297297297,"top3":0.14864864864864866,"top5":0.18243243243243243,"triage_top1":0.15503875968992248,"triage_top3":0.29457364341085274,"triage_n":129,"majority_baseline_top1":0.05067567567567568,"unique_rows":296,"classes":114,"alpha":0.1},"diabetes":{"names":["age","bmi","diastolic"],"mean":[33.3182,32.47,72.3676],"scale":[11.745,6.8804,12.3673],"coef":[0.5604,0.7188,0.0042],"intercept":-0.7556,"auc":0.734,"n":729,"pos_rate":0.344,"auc_with_glucose":0.823}};
+const bpLvl=()=>{const b=S.vitals.bp;return b.sys>=140||b.dia>=90?2:(b.sys<90||b.dia<60?0:1)};
+function nbPredict(){const M=MODEL.nb,v=S.vitals,sy=S.symptoms,a=+age()||30,bi=Math.max(0,M.bands.findIndex(b=>a>=b[0]&&a<=b[1]));
+ const x=[(v.temp.temp>=37.8||sy.includes('fever'))?1:0,sy.includes('cough')?1:0,sy.includes('ache')?1:0,(sy.includes('breath')||v.ox.spo2<94)?1:0,bi,S.user.gender==='Male'?1:0,bpLvl()];
+ const use=M.kiosk_use.filter(j=>!(j===5&&S.user.gender==='Other'));
+ const lp=M.prior.map((p,c)=>use.reduce((s,j)=>s+M.feats[j].logp[c][x[j]],p));
+ const tri=M.classes.map((_,i)=>i).filter(i=>M.triage.includes(M.classes[i]));
+ const mx=Math.max(...tri.map(i=>lp[i])),ex=tri.map(i=>Math.exp(lp[i]-mx)),sm=ex.reduce((p,q)=>p+q,0);
+ const top=tri.map((i,k)=>({name:M.classes[i],p:ex[k]/sm})).sort((p,q)=>q.p-p.p).slice(0,3);
+ let best=0;lp.forEach((p,i)=>{if(p>lp[best])best=i});
+ return{top,overall:M.classes[best],overallIn:M.triage.includes(M.classes[best])}}
+const AGREE={viral:['Influenza','Dengue Fever','Malaria','Typhoid Fever','Measles','Chickenpox'],resp:['Bronchitis','Pneumonia','Asthma','COPD','Tuberculosis'],htn:['Hypertension','Migraine'],gastro:['Gastroenteritis'],cold:['Common Cold','Sinusitis','Allergic Rhinitis'],none:[]};
+const sig=z=>1/(1+Math.exp(-z));
+const lrP=(m,x)=>sig(m.coef.reduce((s,c,i)=>s+c*(x[i]-m.mean[i])/m.scale[i],m.intercept));
+function risks(){const v=S.vitals,a=+age()||30;return[
+ {k:'Diabetes',p:lrP(MODEL.diabetes,[a,v.wt.bmi,v.bp.dia]),w:'had diabetes',m:MODEL.diabetes,x:`A finger-prick glucose test would lift its accuracy (AUC ${MODEL.diabetes.auc} to ${MODEL.diabetes.auc_with_glucose}).`}]}
+const pbar=(label,p,right)=>`<div class="pb"><div class="hd"><span>${label}</span><span class="mono">${right}</span></div><div class="tr"><i data-w="${(p*100).toFixed(1)}"></i></div></div>`;
+function patternPanel(){const nb=nbPredict(),m=MODEL.metrics_nb,ag=AGREE[S.dx.key]||[],agree=nb.top.some(t=>ag.includes(t.name)),R=risks(),n=MODEL.nb.feats[0].logp.length;
+ return `<div class="card stag" style="gap:14px"><div class="row" style="justify-content:space-between"><h3>Second opinion from patient records</h3>${S.dx.key==='none'?'':agree?pill('ok','Agrees with vitals check'):pill('warn','Differs from vitals check')}</div>
+ <div style="display:flex;flex-direction:column;gap:12px">${nb.top.map(t=>pbar(t.name,t.p,`<span data-count="${Math.round(t.p*100)}">0</span>%`)).join('')}</div>
+ <p class="muted" style="font-size:.88rem">Learned from ${m.unique_rows} public patient records across ${m.classes} conditions. On common conditions the right answer was in its top 3 about ${Math.round(m.triage_top3*100)} times in 100. Treat it as a hint, not a verdict.${nb.overallIn?'':' The same records also fit conditions a kiosk cannot judge. The doctor will rule these out.'}</p>
+ <h3 style="margin-top:4px">Long-term risk screen</h3>
+ ${R.map(r=>`<div style="display:flex;flex-direction:column;gap:6px">${pbar(r.k,r.p,`about <span data-count="${Math.round(r.p*10)}">0</span> in 10`)}<span class="muted" style="font-size:.85rem">In the records this model learned from, about ${Math.round(r.p*10)} in 10 people with your age, BMI and blood pressure ${r.w}. ${r.x}</span></div>`).join('')}
+ <details class="mc"><summary>How these models were trained</summary><div class="scroll-x"><table class="tbl"><thead><tr><th>Model</th><th>Data</th><th>Cross-validated result</th></tr></thead><tbody>
+ <tr><td>Disease pattern (Naive Bayes)</td><td>${m.unique_rows} unique records, ${m.classes} conditions</td><td class="mono">Top-1 ${(m.top1*100).toFixed(1)}% (chance ${(m.majority_baseline_top1*100).toFixed(1)}%), top-3 ${(m.top3*100).toFixed(1)}%. Common conditions: top-3 ${(m.triage_top3*100).toFixed(0)}%</td></tr>
+ <tr><td>Diabetes (logistic)</td><td>${MODEL.diabetes.n} women, Pima records</td><td class="mono">AUC ${MODEL.diabetes.auc} with age, BMI, BP only</td></tr>
+</tbody></table></div>
+ <p class="muted" style="font-size:.85rem;margin-top:10px">Both source sets are small and not representative of every population. The heart-disease file is not used: its label is coded in reverse, so a score from it would be wrong. The Virtual Patient dataset is not used here: its usable rows contain no non-frail participants, so a kiosk model from it would mislead. The 7-day forecast is a simple recovery curve, not trained.</p></details></div>`}
+function patternMini(){const nb=nbPredict(),R=risks();return `<div class="card"><h3>Second opinion from patient records</h3><p>${nb.top.map(t=>`${t.name} <span class="mono muted">${Math.round(t.p*100)}%</span>`).join(' · ')}</p><p class="muted" style="font-size:.88rem">${R.map(r=>`${r.k}: about ${Math.round(r.p*10)} in 10 similar people in the training records ${r.w}`).join('. ')}. Indicative only.</p></div>`}
+function animateNums(){const still=matchMedia('(prefers-reduced-motion: reduce)').matches;document.querySelectorAll('[data-count]').forEach(el=>{const to=+el.dataset.count;if(still||!to){el.textContent=to;return}const t0=performance.now();const f=now=>{const k=Math.min(1,(now-t0)/1100);el.textContent=Math.round(to*(1-Math.pow(1-k,3)));if(k<1&&el.isConnected)requestAnimationFrame(f)};requestAnimationFrame(f)})}
+function diagnose(){const v=S.vitals,sy=new Set(S.symptoms),T=v.temp.temp,spo=v.ox.spo2,hr=v.ecg.hr,sys=v.bp.sys,dia=v.bp.dia,d=S.days??0;
+ const sc={viral:0,resp:0,htn:0,gastro:0,cold:0},ev={viral:[],resp:[],htn:[],gastro:[],cold:[]};
+ const add=(k,p,x)=>{sc[k]+=p;ev[k].push(x)};
+ if(T>=37.8)add('viral',3,`Temperature ${T} °C`);if(sy.has('fever'))add('viral',2,'You reported fever');if(sy.has('ache'))add('viral',1.5,'Body ache and tiredness');if(sy.has('headache')&&T>=37.8)add('viral',1,'Headache with fever');
+ if(d<=4&&T>=37.8)add('viral',1,`Short duration (${d?d+' days':'started today'})`);
+ if(sy.has('cough'))add('resp',2,'Cough');if(sy.has('breath'))add('resp',2.5,'Breathlessness');if(spo<95)add('resp',2.5,`Oxygen ${spo} %`);if(T>=37.8&&sy.has('cough'))add('resp',1,'Fever with cough');
+ if(sys>=140||dia>=90)add('htn',4,`Blood pressure ${sys}/${dia} mmHg`);if(sy.has('headache')&&sys>=140)add('htn',1.5,'Headache with raised BP');if(sy.has('dizzy'))add('htn',1,'Dizziness');
+ if(sy.has('nausea'))add('gastro',3,'Nausea or stomach pain');if(sy.has('nausea')&&T>=37.5)add('gastro',.8,'Mild temperature rise');
+ if(sy.has('cold')||sy.has('throat'))add('cold',2,'Cold or sore throat');if(sy.has('cold')&&T<37.8)add('cold',1.2,'No fever');if(sy.has('cough')&&T<37.8)add('cold',.8,'Cough without fever');
+ const names={viral:'Viral fever',resp:'Respiratory infection',htn:'High blood pressure',gastro:'Stomach infection',cold:'Common cold'};
+ const rank=Object.keys(sc).sort((a,b)=>sc[b]-sc[a]),top=rank[0],sum=Object.values(sc).reduce((a,b)=>a+b,0);
+ const emergency=spo<92||sys>=180||dia>=120||(sy.has('chest')&&(hr>120||v.ecg.rhythm!=='Normal sinus'))||(sy.has('breath')&&spo<94);
+ const reasons=[];if(spo<92)reasons.push(`Oxygen level ${spo} %`);if(sys>=180||dia>=120)reasons.push(`Blood pressure ${sys}/${dia}`);if(sy.has('chest')&&hr>120)reasons.push('Chest pain with a fast heart rate');if(sy.has('breath')&&spo<94)reasons.push('Breathlessness with low oxygen');
+ if(sc[top]<1.5)return{key:'none',name:'No significant findings',conf:82,evidence:['All measured vitals are within range','No concerning symptoms reported'],others:[],emergency,reasons};
+ const share=sc[top]/sum;
+ return{key:top,name:names[top],conf:Math.round(Math.min(94,50+share*45)),evidence:ev[top],others:rank.slice(1,3).filter(k=>sc[k]>0).map(k=>({name:names[k],pct:Math.round(sc[k]/sum*100)})),emergency,reasons}}
+const CARE={
+ viral:{adv:['Drink 2–3 litres of fluids through the day: water, ORS, soups','Rest and avoid heavy work for 2–3 days','Sponge with lukewarm water if the temperature stays high','Eat light, home-cooked food'],meds:[['Paracetamol 500 mg','Only if fever is above 38.5 °C. The doctor confirms the dose.'],['ORS sachets','Mix in 1 litre of clean water and sip through the day.']],warn:['Fever above 39.5 °C or lasting more than 3 days','Rash, stiff neck or severe headache','Breathlessness or repeated vomiting'],spec:'gp'},
+ resp:{adv:['Steam inhalation twice a day','Warm fluids and enough rest','Avoid smoke, dust and cold drinks','Sleep with your head slightly raised'],meds:[['Cough syrup','Doctor chooses the type after examining you.']],warn:['Breathing gets harder or lips look bluish','Fever lasts more than 3 days','Chest pain'],spec:'pulm'},
+ htn:{adv:['Sit and rest for 10 minutes, then re-check','Cut down on salt and fried food today','Avoid tea, coffee and stress','A doctor decides if you need a daily medicine'],meds:[['No tablet suggested by this kiosk','Blood pressure medicines are prescribed only by a doctor.']],warn:['Severe headache, blurred vision or chest pain','Weakness on one side or trouble speaking'],spec:'cardio'},
+ gastro:{adv:['Sip ORS after every loose stool','Bland food: rice, banana, curd','Wash hands before eating','Avoid outside food and raw salads'],meds:[['ORS sachets','After every loose stool.'],['Zinc tablets','Doctor confirms the number of days.']],warn:['Blood in stool or vomit','Very little urine, dry mouth or dizziness','Pain that keeps getting worse'],spec:'gastro'},
+ cold:{adv:['Warm fluids and steam inhalation','Salt-water gargle three times a day','Rest and sleep well'],meds:[['Saline nasal drops','2 drops in each nostril, as needed.']],warn:['Fever above 38 °C for more than 2 days','Ear pain or breathing trouble'],spec:'gp'},
+ none:{adv:['Keep up your routine: water, sleep, a walk','Re-visit if any symptom appears'],meds:[],warn:['Any new fever, chest pain or breathlessness'],spec:'gp'}};
+const DOC={gp:{name:'Dr. Anjali Rao',role:'General Physician',room:'OPD 12',wait:15},gp2:{name:'Dr. Imran Qureshi',role:'General Physician',room:'OPD 13',wait:10},pulm:{name:'Dr. Vikram Iyer',role:'Pulmonologist',room:'OPD 7',wait:25},
+ cardio:{name:'Dr. Farah Khan',role:'Cardiologist',room:'OPD 4',wait:30},gastro:{name:'Dr. Suresh Nair',role:'Gastroenterologist',room:'OPD 9',wait:20},er:{name:'Emergency Team',role:'Emergency Medicine',room:'ER 1',wait:0}};
+
+/* ---------- digital twin ---------- */
+function twinCfg(){const v=S.vitals,d=S.dx;
+ if(d.key==='viral'||d.key==='resp'||(d.key==='none'&&false))return{label:'Body temperature',unit:'°C',start:v.temp.temp,target:36.8,kc:1.7,kn:3.4,dec:1};
+ if(d.key==='htn')return{label:'Systolic BP',unit:'mmHg',start:v.bp.sys,target:126,kc:3.5,kn:12,dec:0};
+ return{label:'Resting heart rate',unit:'bpm',start:v.ecg.hr,target:70,kc:2.5,kn:5,dec:0}}
+function twinChart(){const c=twinCfg(),W=340,H=190,l=44,r=14,tp=14,b=30;
+ const pts=k=>Array.from({length:8},(_,i)=>c.target+(c.start-c.target)*Math.exp(-i/k));const a=pts(c.kc),n=pts(c.kn);
+ const span=Math.max(c.dec?0.6:6,Math.abs(c.start-c.target)),bw=S.wearable?.05:.13;
+ const lo=Math.min(c.target,...a,...n)-span*.3,hi=Math.max(c.start,...a,...n)+span*.3;
+ const X=i=>l+i*(W-l-r)/7,Y=v=>tp+(hi-v)/(hi-lo)*(H-tp-b),half=i=>span*bw*(.4+i/7);
+ const up=a.map((v,i)=>`${X(i)},${Y(v+half(i))}`),dn=a.map((v,i)=>`${X(7-i)},${Y(a[7-i]-half(7-i))}`);
+ const path=p=>p.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join('');
+ const tk=[hi-span*.3,(hi+lo)/2,lo+span*.3].map(v=>`<line x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${l-6}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="JetBrains Mono,monospace">${v.toFixed(c.dec)}</text>`).join('');
+ const xs=[0,2,4,6,7].map(i=>`<text x="${X(i)}" y="${H-10}" text-anchor="middle" font-size="10" fill="var(--muted)">${i?'Day '+i:'Today'}</text>`).join('');
+ return `<svg class="twin" viewBox="0 0 ${W} ${H}" role="img" aria-label="Seven day forecast for ${c.label}">${tk}${xs}<polygon points="${up.concat(dn).join(' ')}" fill="var(--teal)" opacity=".16"/><path d="${path(n)}" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-dasharray="6 5" stroke-linecap="round"/><path d="${path(a)}" fill="none" stroke="var(--teal)" stroke-width="3" stroke-linecap="round"/><circle cx="${X(0)}" cy="${Y(a[0])}" r="5" fill="var(--teal)"/><circle cx="${X(7)}" cy="${Y(a[7])}" r="5" fill="var(--teal)"/></svg>
+ <div class="legend"><span><i style="background:var(--teal)"></i>With care plan</span><span><i style="background:var(--gold)"></i>Without care</span><span><i style="background:var(--teal);opacity:.3"></i>Forecast range</span></div>`}
+const RHR=[67,68,67,70,75,83,92];
+function spark(){const W=160,H=44,mn=60,mx=96;const p=RHR.map((v,i)=>`${i?'L':'M'}${(i*(W-8)/6+4).toFixed(1)} ${(H-4-(v-mn)/(mx-mn)*(H-8)).toFixed(1)}`).join('');return `<svg viewBox="0 0 ${W} ${H}" width="160" height="44" role="img" aria-label="Resting heart rate over seven days"><path d="${p}" fill="none" stroke="var(--teal)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${W-4}" cy="${(H-4-(92-mn)/(mx-mn)*(H-8)).toFixed(1)}" r="4" fill="var(--gold)"/></svg>`}
+function score(){const v=S.vitals;let s=100;s-=Math.max(0,(v.temp.temp-37.2))*9;s-=Math.max(0,95-v.ox.spo2)*3;s-=Math.max(0,v.bp.sys-130)*.5;s-=Math.max(0,v.ecg.hr-100)*.4;s-=S.symptoms.length*2.5;return Math.max(20,Math.round(s))}
+function ring(sc){const R=46,C=2*Math.PI*R,col=sc>=80?'var(--ok)':sc>=60?'var(--gold)':'var(--crit)';return `<svg class="ring" viewBox="0 0 120 120" role="img" aria-label="Health score ${sc} of 100"><circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--line)" stroke-width="10"/><circle class="rg" cx="60" cy="60" r="${R}" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C*(1-sc/100)).toFixed(1)}" style="--c:${C.toFixed(1)}" transform="rotate(-90 60 60)"/><text x="60" y="64" text-anchor="middle" font-family="JetBrains Mono,monospace" font-weight="700" font-size="28" fill="var(--ink)">${sc}</text><text x="60" y="82" text-anchor="middle" font-size="10" fill="var(--muted)">health score</text></svg>`}
+
+/* ---------- screens ---------- */
+const SCREENS={
+welcome(){const pills=[['en','English'],['hi','हिन्दी'],['ta','தமிழ்']].map(([k,n])=>`<button class="cb ${S.lang===k?'sel':''}" data-act="lang" data-v="${k}" lang="${k}">${n}</button>`).join('');
+ return `<div class="panel hero fade"><div style="display:flex;flex-direction:column;gap:18px"><h1>Digi<em>Chikitsak</em></h1><p style="font-size:1.25rem">${t('tagline')}</p>
+ <div class="facts"><span class="fact">5 vitals</span><span class="fact">About 4 minutes</span><span class="fact">Report in your hand</span></div>
+ <div><div class="muted" style="font-weight:600;margin-bottom:8px">${t('pick_lang')}</div><div class="chips">${pills}</div></div>
+ <label class="row" style="gap:12px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="consent" style="width:26px;height:26px;flex:none;margin-top:2px" ${S.consent?'checked':''}><span>${t('consent')}</span></label>
+ <div class="row"><button class="btn" id="startBtn" data-act="start" ${S.consent?'':'disabled'}>${t('start')}</button></div></div>
+ <div class="kiosk-art">${avatar()}<div class="mono" style="font-size:.85rem;text-align:center">Dr. Chikitsak<br><span class="muted">AI guide for your OPD visit</span></div></div></div>`},
+login(){return `${backBtn()}${say(t('login_h'))}<div class="panel fade"><div class="grid2"><label class="f">${t('id_l')}<input type="text" id="loginId" inputmode="numeric" placeholder="DC-204518 or 98XXXXXXXX" value="${esc(S.loginId)}"></label>
+ ${S.otpSent?`<label class="f">${t('otp_l')}<input type="text" id="otp" inputmode="numeric" maxlength="6" placeholder="••••"></label>`:''}</div>
+ ${S.otpSent?'<div class="hint">Prototype: any 4 digits work as the OTP.</div>':''}
+ <div class="row">${S.otpSent?`<button class="btn" data-act="verify">${t('verify')}</button>`:`<button class="btn" data-act="sendotp">${t('send_otp')}</button>`}<button class="btn ghost" data-act="goreg">${t('new_user')}</button></div></div>`},
+register(){const u=S.user;return `${backBtn()}${say(t('reg_h'))}<div class="panel fade"><div class="grid2">
+ <label class="f">${t('name')}<input type="text" id="rName" value="" placeholder="Full name"></label>
+ <label class="f">${t('dob')}<input type="date" id="rDob" value="${u.dob}"></label>
+ <label class="f">${t('mobile')}<input type="tel" id="rMob" inputmode="numeric" placeholder="10-digit number"></label>
+ <label class="f">${t('height')}<input type="number" id="rHt" value="${u.height}" min="50" max="230"></label></div>
+ <div><div class="muted" style="font-weight:600;margin-bottom:8px">${t('gender')}</div><div class="chips">${['Female','Male','Other'].map(g=>`<button class="cb ${u.gender===g?'sel':''}" data-act="gender" data-v="${g}">${g}</button>`).join('')}</div></div>
+ <label class="f" style="max-width:280px">OTP<input type="text" id="rOtp" inputmode="numeric" maxlength="6" placeholder="Any 4 digits (prototype)"></label>
+ <div class="row"><button class="btn" data-act="doreg">${t('register')}</button></div></div>`},
+idcard(){return `${say(`<b>${t('your_id')}</b>`)}<div class="panel fade"><div class="idcard"><div><div style="opacity:.8;font-size:.8rem;font-weight:700;letter-spacing:.1em">DIGICHIKITSAK · PATIENT ID</div><div class="num">${S.user.id}</div><div style="margin-top:6px;font-weight:600">${esc(S.user.name)}</div></div>${qr(S.user.id)}</div>
+ <p class="muted">Use this ID or your mobile number to sign in next time. Your past reports stay linked to it.</p><div class="row"><button class="btn" data-act="next">${t('continue')}</button></div></div>`},
+precheck(){const currentAge=+age()||30;return `${backBtn()}${say('<b>Before we begin, tell me a little about yourself.</b>')}
+ <div class="panel fade"><div class="grid2"><label class="f">Your age (years)<input id="precheckAge" type="number" min="1" max="120" value="${currentAge}" required></label>
+ <div class="hint" style="align-self:end">Choose the symptoms you are experiencing now. You can review or edit them later in the consultation.</div></div>
+ <h3>Which symptoms do you have?</h3><div class="chips">${SYM.map(s=>`<button type="button" class="cb ${S.symptoms.includes(s[0])?'sel':''}" data-act="sym" data-v="${s[0]}">${symLabel(s[0])}</button>`).join('')}</div>
+ <label class="f">Anything else you would like to mention? <textarea id="precheckText" placeholder="Describe any other symptoms (optional)">${esc(S.text)}</textarea></label>
+ <p class="hint">This is a proof of concept. Symptoms and model outputs are not a diagnosis. For severe chest pain or difficulty breathing, seek urgent medical help.</p>
+ <div class="row"><button class="btn" data-act="precheckgo">Continue to DigiChikitsak <span>→</span></button></div></div>`},
+ intro(){const sw=[['ox','SpO₂'],['temp','Temp'],['bp','BP'],['wt','Weight'],['ecg','ECG']];
+ return `${backBtn()}${say(`${S.returning?`<b>Welcome back, ${esc(S.user.name.split(' ')[0])}.</b> Last visit: viral fever, 14 Sep. `:''}${t('wear_h')}`)}<div class="panel fade"><p class="muted">${t('wear_p')}</p><div class="mini">${sw.map(([k,n])=>`<div>${icon(k,'')}${n}</div>`).join('')}</div>
+ <div class="row"><button class="btn" data-act="next">${t('continue')}</button></div></div>`},
+crunch1(){return crunch(['Reading five sensors','Matching with your health record (EHR)','Syncing wearable data','Building your virtual patient model'],true)},
+talk(){const v=S.vitals;const obs=v.temp.temp>=37.8?` I can see your temperature is ${v.temp.temp} °C.`:v.bp.sys>=140?` I can see your blood pressure is on the higher side.`:'';
+ return `${backBtn()}${say(`<b>${t('hello_h')}</b>${obs}`)}<div class="panel fade"><p class="muted">${t('hello_p')}</p>
+ <div class="chips" id="symchips">${SYM.map(s=>`<button class="cb ${S.symptoms.includes(s[0])?'sel':''}" data-act="sym" data-v="${s[0]}">${symLabel(s[0])}</button>`).join('')}</div>
+ <textarea id="symtext" placeholder="e.g. fever since yesterday with body ache">${esc(S.text)}</textarea><div class="row"><button class="btn" data-act="symsend">${t('send')}</button></div></div>`},
+days(){const D=[[0,'d0'],[2,'d1'],[4,'d2'],[7,'d3']],C=['Diabetes','Asthma','Allergy to medicines','None of these'];
+ return `${backBtn()}${say(`<b>${t('days_h')}</b>`)}<div class="panel fade"><div class="chips">${D.map(([n,k])=>`<button class="cb ${S.days===n?'sel':''}" data-act="days" data-v="${n}">${t(k)}</button>`).join('')}</div>
+ <div><div class="muted" style="font-weight:600;margin-bottom:8px">Do you have any of these? (optional)</div><div class="chips">${C.map(c=>`<button class="cb ${S.conds.includes(c)?'sel':''}" data-act="cond" data-v="${c}">${c}</button>`).join('')}</div></div>
+ <div class="row"><button class="btn" data-act="next" id="daysNext" ${S.days===null?'disabled':''}>${t('next')}</button></div></div>`},
+verify(){const v=S.vitals;const rows=[['Patient',`${esc(S.user.name)} · ${age()} y · ${S.user.gender}`],['Patient ID',S.user.id],['Temperature',`${v.temp.temp} °C`],['SpO₂ · Pulse',`${v.ox.spo2} % · ${v.ox.hr} bpm`],['Blood pressure',`${v.bp.sys}/${v.bp.dia} mmHg`],['Weight · BMI',`${v.wt.wt} kg · ${v.wt.bmi}`],['Symptoms',S.symptoms.length?S.symptoms.map(symLabel).join(', '):'None selected'],['Duration',S.days===0?t('d0'):S.days===2?t('d1'):S.days===4?t('d2'):t('d3')],['Conditions',S.conds.length?S.conds.join(', '):'None']];
+ return `${backBtn()}${say(`<b>${t('verify_h')}</b> ${t('verify_p')}`)}<div class="panel fade"><div class="scroll-x"><table class="tbl"><tbody>${rows.map(r=>`<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join('')}</tbody></table></div>
+ <div class="row"><button class="btn" data-act="next">${t('confirm')}</button><button class="btn ghost" data-act="editsym">Edit symptoms</button></div></div>`},
+crunch2(){return crunch(['Fetching your past records','Comparing vitals with symptoms','Running the diagnosis model','Checking for emergency signs'],false)},
+dx(){const d=S.dx,sc=score();
+ const em=d.emergency?`<div class="alert fade"><span style="font-size:1.6rem">⚠</span><div>Please stay seated. This needs a doctor right now.<div style="font-weight:500;margin-top:4px">${d.reasons.join(' · ')}. Prototype: the nurse station is alerted here.</div></div></div>`:'';
+ return `${say(`<b>${t('dx_h')}</b>`)}${em}<div class="panel fade"><div class="dxcard"><div style="display:flex;flex-direction:column;gap:10px"><span class="muted" style="font-weight:700;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase">You may have</span><div class="dxname">${d.name}</div>
+ <div class="row"><div class="bar" style="flex:1;min-width:140px"><i data-w="${d.conf}"></i></div><span class="mono" style="font-weight:700"><span data-count="${d.conf}">0</span>% match</span></div></div>${ring(sc)}</div>
+ <div class="grid2"><div class="card"><h3>Why I think so</h3><ul class="list">${d.evidence.map(e=>`<li>${esc(e)}</li>`).join('')}</ul></div>
+ <div class="card"><h3>Other possibilities</h3>${d.others.length?`<ul class="list">${d.others.map(o=>`<li>${o.name} <span class="mono muted">${o.pct}%</span></li>`).join('')}</ul>`:'<p class="muted">None that match your symptoms.</p>'}</div></div>
+ ${patternPanel()}<p class="hint">AI-assisted screening. A doctor confirms every diagnosis before treatment.</p><div class="row"><button class="btn" data-act="next">${t('continue')}</button></div></div>`},
+care(){const c=CARE[S.dx.key];return `${backBtn()}${say(`<b>${t('care_h')}</b>`)}<div class="panel fade"><div class="grid2"><div class="card"><h3>Hydrate and rest</h3><ul class="list">${c.adv.map(a=>`<li>${a}</li>`).join('')}</ul></div>
+ <div class="card"><h3>Medicine suggestions</h3>${c.meds.length?`<ul class="list">${c.meds.map(m=>`<li><b>${m[0]}</b><br><span class="muted">${m[1]}</span></li>`).join('')}</ul>`:'<p class="muted">No medicine needed right now.</p>'}<div class="hint">Suggestions only. Nothing is issued until a doctor approves.</div></div></div>
+ <div class="card" style="border-color:var(--crit)"><h3 style="color:var(--crit)">Get help quickly if</h3><ul class="list">${c.warn.map(w=>`<li>${w}</li>`).join('')}</ul></div>
+ <div class="row"><button class="btn" data-act="next">${t('continue')}</button></div></div>`},
+doctor(){if(S.dx.emergency){S.doctor='er'}else if(!S.doctor)S.doctor=CARE[S.dx.key].spec;
+ const keys=S.dx.emergency?['er']:[CARE[S.dx.key].spec,CARE[S.dx.key].spec==='gp'?'gp2':'gp'];
+ return `${backBtn()}${say(`<b>${t('doc_h')}</b>`)}<div class="panel fade"><div class="grid2">${keys.map((k,i)=>{const d=DOC[k];return `<button class="card ${S.doctor===k?'pick':''}" style="text-align:left;cursor:pointer" data-act="pickdoc" data-v="${k}"><div class="row" style="justify-content:space-between"><h3>${d.name}</h3>${i===0?pill('ok','Best match'):''}</div><div class="muted">${d.role}</div><div class="mono" style="font-size:.9rem">${d.room} · ${d.wait?`about ${d.wait} min wait`:'go now'}</div></button>`}).join('')}</div>
+ <p class="hint">Sample doctors for this prototype.</p><div class="row"><button class="btn" data-act="next">${S.dx.emergency?'Alert emergency desk':t('continue')}</button></div></div>`},
+resolved(){return `${backBtn()}${say(`<b>${t('resolved_h')}</b> Did the advice answer your concern?`)}<div class="panel fade"><div class="row"><button class="btn" data-act="res" data-v="yes">${t('yes')}</button><button class="btn ghost" data-act="res" data-v="no">${t('no')}</button></div></div>`},
+opd(){if(!S.token)S.token=(S.dx.emergency?'E-':'A-')+(20+Math.floor(Math.random()*60));const d=DOC[S.doctor||'gp'];
+ return `${say(`<b>${S.dx.emergency?'The emergency team is expecting you.':'Your OPD token is ready.'}</b>`)}<div class="panel fade"><div class="idcard" style="max-width:520px"><div><div style="opacity:.8;font-size:.8rem;font-weight:700;letter-spacing:.1em">${S.dx.emergency?'PRIORITY TOKEN':'OPD TOKEN'}</div><div class="num" style="font-size:3rem">${S.token}</div><div style="font-weight:600">${d.name} · ${d.room}</div><div style="opacity:.85">${d.wait?`Estimated wait ${d.wait} min`:'Walk in now'}</div></div></div>
+ <p class="muted">Your vitals and this assessment are already in the doctor's screen. You will not need to repeat them.</p><div class="row"><button class="btn" data-act="next">Generate report</button></div></div>`},
+report(){const v=S.vitals,d=S.dx,c=CARE[d.key],doc=DOC[S.doctor||CARE[d.key].spec],sc=score();const now=new Date().toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});const rid='RPT-'+(hash(S.user.id+now)%900000+100000);
+ const vr=[['Temperature',`${v.temp.temp} °C (${F(v.temp.temp)} °F)`,ST.temp(v.temp.temp)],['SpO₂',`${v.ox.spo2} %`,ST.spo2(v.ox.spo2)],['Pulse',`${v.ox.hr} bpm`,ST.hr(v.ox.hr)],['Blood pressure',`${v.bp.sys}/${v.bp.dia} mmHg`,ST.bp(v.bp.sys,v.bp.dia)],['Weight · BMI',`${v.wt.wt} kg · ${v.wt.bmi}`,ST.bmi(v.wt.bmi)],['ECG rhythm',`${v.ecg.rhythm} · ${v.ecg.hr} bpm`,ST.hr(v.ecg.hr)]];
+ const w=S.wearable?`<div class="card"><div class="row" style="justify-content:space-between"><b>Wearable data (sample)</b>${pill('ok','Connected')}</div><div class="row">${spark()}<div><div class="mono" style="font-weight:700">Resting HR 67 → 92 bpm</div><div class="muted" style="font-size:.88rem">Sleep 5.1 h last night, usual 7.0 h</div></div></div><div class="muted" style="font-size:.88rem">Forecast range narrowed. The model now has seven days of baseline.</div></div>`:`<div class="card"><b>Add wearable data</b><p class="muted" style="font-size:.9rem">Connect a watch or band to tighten the forecast.</p><button class="btn sm ghost" data-act="wear" style="align-self:flex-start">Connect wearable (sample data)</button></div>`;
+ return `${say(`<b>${t('report_h')}</b>`)}<div class="paper fade" id="report"><div class="paper-head"><div><b>DigiChikitsak</b><div style="opacity:.85;font-size:.85rem">Health report · ${now}</div></div><div class="mono" style="font-size:.9rem">${rid}</div></div>
+ <div class="paper-body">${apiAssessment?`<div class="toast">Saved to the local patient database · Assessment #${apiAssessment.id}</div>`:S.persistError?`<div class="hint">The report is shown, but database saving failed: ${esc(S.persistError)}</div>`:`<div class="hint">This report has not yet been saved to the database.</div>`}<div class="kv"><div><small>Patient</small><b>${esc(S.user.name)}</b></div><div><small>Age · Gender</small><b>${age()} · ${S.user.gender}</b></div><div><small>Patient ID</small><b class="mono">${S.user.id}</b></div><div><small>Seen by</small><b>${doc.name}</b><span class="muted" style="font-size:.85rem">${doc.room} · Token ${S.token||'–'}</span></div></div>
+ <div class="scroll-x"><table class="tbl"><thead><tr><th>Vital</th><th>Reading</th><th>Status</th></tr></thead><tbody>${vr.map(r=>`<tr><td>${r[0]}</td><td class="mono">${r[1]}</td><td>${pill(...r[2])}</td></tr>`).join('')}</tbody></table></div>
+ <div class="dxcard"><div style="display:flex;flex-direction:column;gap:8px"><small class="muted" style="font-weight:700;letter-spacing:.08em;text-transform:uppercase">Assessment</small><div class="dxname" style="font-size:1.7rem">${d.name}</div><div class="muted">Symptoms: ${S.symptoms.length?S.symptoms.map(x=>SYM.find(s=>s[0]===x)[1]).join(', '):'none reported'} · ${S.days===0?'started today':S.days===2?'1–2 days':S.days===4?'3–5 days':'6+ days'}</div></div>${ring(sc)}</div>
+ <div class="grid2"><div class="card"><h3>Advice</h3><ul class="list">${c.adv.map(a=>`<li>${a}</li>`).join('')}</ul></div><div class="card"><h3>Pending doctor approval</h3>${c.meds.length?`<ul class="list">${c.meds.map(m=>`<li>${m[0]}</li>`).join('')}</ul>`:'<p class="muted">No medicine suggested.</p>'}</div></div>
+ ${patternMini()}<div><h3 style="margin-bottom:4px">Virtual patient model · 7-day forecast</h3><p class="muted" style="font-size:.9rem;margin-bottom:10px">${twinCfg().label} (${twinCfg().unit}), predicted from today's vitals, your health record and wearable data. An estimate, not a promise.</p>${twinChart()}</div>${w}
+ <div class="row" style="justify-content:space-between;align-items:center"><p class="hint" style="flex:1;min-width:200px">AI-assisted screening. Not a final diagnosis. Show this report to your doctor.</p>${qr(rid)}</div></div></div>
+ <div class="panel fade"><div class="row"><button class="btn" data-act="print">${t('print')}</button><button class="btn ghost" data-act="mailtoggle">${t('mail')}</button><button class="btn gold" data-act="next">${t('med_h')} →</button></div>
+ ${S.printed?`<div class="toast">Prototype: sent to the kiosk printer. In a live kiosk, collect it from the tray below the screen.</div>`:''}
+ <div id="mailbox" ${S.mailBox?'':'hidden'}><div class="row"><input type="email" id="mailTo" placeholder="you@example.com" value="${esc(S.user.email)}" style="flex:1;min-width:220px"><button class="btn sm" data-act="mailsend">Send</button></div></div>
+ ${S.mailed?`<div class="toast">Prototype: report queued for ${esc(S.user.email)}. No real email is sent here.</div>`:''}</div>`},
+medicine(){const c=CARE[S.dx.key];return `${backBtn()}${say(`<b>${t('med_h')}</b> Medicines are issued only after the doctor approves.`)}<div class="panel fade">${c.meds.length?`<div class="scroll-x"><table class="tbl"><thead><tr><th>Medicine</th><th>Note</th><th>Status</th></tr></thead><tbody>${c.meds.map(m=>`<tr><td><b>${m[0]}</b></td><td class="muted">${m[1]}</td><td>${pill('warn','Awaiting doctor')}</td></tr>`).join('')}</tbody></table></div>`:'<p>No medicines in your queue.</p>'}
+ <div class="grid2"><div class="card"><small class="muted">Pharmacy counter</small><b class="mono" style="font-size:1.4rem">Counter 3</b></div><div class="card"><small class="muted">Your token</small><b class="mono" style="font-size:1.4rem">${S.token||'–'}</b></div></div>
+ <div class="row"><button class="btn" data-act="next">${t('continue')}</button></div></div>`},
+followup(){const O=[['24h','Tomorrow'],['48h','In 2 days'],['72h','In 3 days']];return `${backBtn()}${say(`<b>${t('notify')}</b> I will ask how you feel, so you do not have to remember.`)}<div class="panel fade"><div class="chips">${O.map(([k,n])=>`<button class="cb ${S.notify===k?'sel':''}" data-act="notify" data-v="${k}">${n}</button>`).join('')}</div>
+ <p class="muted">The check-back asks if your temperature and symptoms are better. If you reply that you feel worse, a nurse is asked to call you.</p>
+ ${S.notified?`<div class="toast">Prototype: check-back set for ${O.find(o=>o[0]===S.notify)[1].toLowerCase()}. Nothing is actually scheduled in this demo.</div>`:''}
+ <div class="row"><button class="btn gold" data-act="schedule">Set check-back</button><button class="btn" data-act="next">${t('done')}</button></div></div>`},
+done(){return `<div class="panel fade" style="align-items:flex-start"><div class="row">${avatar()}<h2>Thank you, ${esc(S.user.name.split(' ')[0])}. Get well soon.</h2></div><p>Your session data is cleared from this screen in <b class="mono" id="cd">12</b> s. Please sanitise the devices you used.</p><div class="row"><button class="btn" data-act="reset">Start for next patient</button></div></div>`}
+};
+const VK={ox:['ox_h','ox_d',1],temp:['temp_h','temp_d',2],bp:['bp_h','bp_d',3],wt:['wt_h','wt_d',4],ecg:['ecg_h','ecg_d',5]};
+Object.keys(VK).forEach(k=>{SCREENS[k]=()=>{const [h,d,n]=VK[k],v=S.vitals[k];
+ return `${backBtn()}${say(`<b>${t(h)}</b>`)}<div class="panel fade"><div class="dev ${S.busy?'busy':''}">${icon(k)}<div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:8px"><span class="mono muted" style="font-size:.8rem">STEP ${n} OF 5</span><p style="font-size:1.1rem">${t(d)}</p></div></div>
+ ${k==='ecg'?'<canvas class="ecg" id="ecgc" aria-label="Live heart trace"></canvas>':''}
+ ${S.busy?`<div class="bar run"><i></i></div><div class="muted" style="font-weight:600">${t('measuring')}</div>`:''}
+ ${v?readingHtml(k,v):''}
+ <div class="row">${v?`<button class="btn" data-act="next">${t('next')}</button><button class="btn ghost sm" data-act="measure" data-v="${k}">Measure again</button>`:`<button class="btn" data-act="measure" data-v="${k}" ${S.busy?'disabled':''}>${t('measure')}</button>`}</div></div>`}});
+
+function crunch(steps,first){return `${say(`<b>${t('crunch')}</b>`)}<div class="panel fade" style="align-items:flex-start"><div class="spin"></div><ul class="steps" id="steps">${steps.map(s=>`<li><span class="dot">✓</span>${s}</li>`).join('')}</ul></div>`}
+
+async function persistAssessment(){
+ if(!apiPatient||apiAssessment)return;
+ const v=S.vitals, labels={fever:'Fever',cough:'Cough',ache:'Body ache',throat:'Sore throat',cold:'Cold / runny nose',breath:'Difficulty breathing',chest:'Chest pain',nausea:'Nausea / stomach pain',dizzy:'Dizziness',headache:'Headache'};
+ const symptoms=S.symptoms.map(k=>labels[k]||k);
+ const payload={patient_id:apiPatient.patient_id,age:+age()||30,gender:['Female','Male','Other','Prefer not to say'].includes(S.user.gender)?S.user.gender:'Prefer not to say',symptoms,duration_days:S.days??0,temperature_c:v.temp.temp,spo2:v.ox.spo2,systolic_bp:v.bp.sys,diastolic_bp:v.bp.dia,weight_kg:v.wt.wt,height_cm:S.user.height||162,fever:S.symptoms.includes('fever')||v.temp.temp>=37.8,cough:S.symptoms.includes('cough'),fatigue:S.symptoms.includes('ache'),difficulty_breathing:S.symptoms.includes('breath'),blood_pressure_label:(v.bp.sys>=140||v.bp.dia>=90)?'High':(v.bp.sys<90||v.bp.dia<60)?'Low':'Normal',cholesterol_label:'Normal'};
+ try{const r=await fetch('/api/assessments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await r.json();if(!r.ok)throw new Error(data.detail||'Assessment save failed');apiAssessment=data;S.persistError='';}
+ catch(e){S.persistError=e.message;console.error('Assessment persistence failed',e);}
+}
+
+/* ---------- render ---------- */
+function render(){clearT();
+ $('#stage').innerHTML=SCREENS[S.screen]();
+ $('#phases').innerHTML=['p0','p1','p2','p3','p4'].map((k,i)=>`<div class="ph ${i===PH[S.screen]?'on':i<PH[S.screen]?'done':''}"><i></i><span>${t(k)}</span></div>`).join('');
+ $('#tools').innerHTML=`<a class="tool" href="/staff" style="display:inline-flex;align-items:center;text-decoration:none">Staff dashboard ↗</a><button class="tool" data-act="theme">◐ Theme</button><button class="tool" data-act="big" aria-pressed="${document.documentElement.classList.contains('big')}">Aa Large Text</button>`;
+ $('#demo').innerHTML=`<span>Patient data saves to the local SQLite database when registered and assessed.</span><span>Prototype scenario:</span>${Object.keys(SCN).map(k=>`<button class="cb ${S.scenario===k?'sel':''}" data-act="scn" data-v="${k}">${SCN[k]}</button>`).join('')}<span style="margin-left:10px">Age:</span>${[27,55,68].map(a=>`<button class="cb ${+age()===a?'sel':''}" data-act="age" data-v="${a}">${a}</button>`).join('')}`;
+ window.scrollTo({top:0});
+ mount();}
+function mount(){const s=S.screen;animateNums();document.querySelectorAll('i[data-w]').forEach(e=>requestAnimationFrame(()=>requestAnimationFrame(()=>{e.style.width=e.dataset.w+'%'})));
+ if(s==='crunch1'||s==='crunch2'){const items=[...document.querySelectorAll('#steps li')];items.forEach((li,i)=>after(500+i*750,()=>li.classList.add('on')));
+  after(500+items.length*750+500,async()=>{if(s==='crunch2'){S.dx=diagnose();await persistAssessment()}next()})}
+ if(s==='ecg')startECG();
+ if(s==='done'){let n=12;tick=setInterval(()=>{n--;const e=$('#cd');if(e)e.textContent=n;if(n<=0){clearInterval(tick);reset()}},1000)}
+ const c=$('#consent');if(c)c.addEventListener('change',()=>{S.consent=c.checked;$('#startBtn').disabled=!c.checked})}
+function reset(){const l=S.lang,sc=S.scenario;S0.lang=l;S0.scenario=sc;S=fresh();render()}
+function startECG(){const cv=$('#ecgc');if(!cv)return;const ctx=cv.getContext('2d'),dpr=window.devicePixelRatio||1;const w=cv.clientWidth,h=cv.clientHeight;cv.width=w*dpr;cv.height=h*dpr;ctx.scale(dpr,dpr);
+ const g=(p,c,wd,a)=>a*Math.exp(-((p-c)**2)/(2*wd*wd));const beat=p=>g(p,.18,.025,.12)+g(p,.36,.008,-.12)+g(p,.38,.01,1)+g(p,.4,.01,-.25)+g(p,.62,.04,.25);
+ const bpm=()=>S.vitals.ecg?S.vitals.ecg.hr:SC[S.scenario].hr;let off=0;const col=getComputedStyle(document.documentElement).getPropertyValue('--teal').trim()||'#07767A';
+ const still=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const draw=()=>{if(!cv.isConnected)return;ctx.clearRect(0,0,w,h);ctx.strokeStyle=col;ctx.lineWidth=2.4;ctx.lineJoin='round';ctx.beginPath();const ppb=60/bpm()*140;
+  for(let x=0;x<w;x++){const p=(((x+off)/ppb)%1+1)%1,y=h*.62-beat(p)*h*.5;x?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.stroke();if(!still)off+=2.2;raf=requestAnimationFrame(draw)};draw()}
+
+/* ---------- actions ---------- */
+const ACT={
+ lang(v){S.lang=v;S0.lang=v;render()},
+ start(){go('login')},
+ sendotp(){const v=$('#loginId').value.trim();if(v.length<4){$('#loginId').focus();return}S.loginId=v;S.otpSent=true;render()},
+ async verify(){const o=$('#otp').value.trim();if(o.length<4){$('#otp').focus();return}try{const r=await fetch('/api/patients/lookup?identifier='+encodeURIComponent(S.loginId));if(!r.ok){alert('No saved patient was found for that ID/mobile. Please register as a new patient.');return}const p=await r.json();apiPatient=p;S.user.id=p.patient_id;S.user.name=p.name;S.user.mobile=p.mobile||S.loginId;S.user.gender=p.gender;S.user.dob=(new Date().getFullYear()-p.age)+'-06-15';S.returning=true;next()}catch(e){alert('Could not look up the patient record. Please ensure the server is running.')}},
+ goreg(){go('register')},
+ gender(v,el){S.user.gender=v;el.parentNode.querySelectorAll('.cb').forEach(b=>b.classList.toggle('sel',b===el))},
+ async doreg(){const n=$('#rName').value.trim(),m=$('#rMob').value.trim(),o=$('#rOtp').value.trim();if(!n){$('#rName').focus();return}if(m.replace(/\D/g,'').length<10){$('#rMob').focus();return}if(o.length<4){$('#rOtp').focus();return}
+  S.user.name=n;S.user.dob=$('#rDob').value||'1999-06-15';S.user.mobile=m;S.user.height=+$('#rHt').value||162;const years=Math.max(1,Math.floor((Date.now()-new Date(S.user.dob).getTime())/31557600000));try{const r=await fetch('/api/patients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,age:years,gender:S.user.gender,mobile:m})});const p=await r.json();if(!r.ok)throw new Error(p.detail||'Registration failed');apiPatient=p;S.user.id=p.patient_id;S.returning=false;next()}catch(e){alert('Could not save registration: '+e.message+'\nPlease check that the DigiChikitsak server is running.')}},
+ next(){next()},back(){back()},
+ precheckgo(){const input=$('#precheckAge'),a=Number(input.value);if(!Number.isInteger(a)||a<1||a>120){input.focus();alert('Please enter an age between 1 and 120.');return}S.user.dob=(new Date().getFullYear()-a)+'-06-15';S.text=$('#precheckText').value.trim();go('intro')},
+ measure(k){if(S.busy)return;S.busy=true;delete S.vitals[k];render();after(2500,()=>{S.busy=false;S.vitals[k]=reading(k);render()})},
+ sym(v,el){const i=S.symptoms.indexOf(v);i<0?S.symptoms.push(v):S.symptoms.splice(i,1);el.classList.toggle('sel')},
+ symsend(){const tx=$('#symtext').value;S.text=tx;const low=tx.toLowerCase();Object.entries(KW).forEach(([k,w])=>{if(w.some(x=>low.includes(x))&&!S.symptoms.includes(k))S.symptoms.push(k)});next()},
+ days(v,el){S.days=+v;el.parentNode.querySelectorAll('.cb').forEach(b=>b.classList.toggle('sel',b===el));$('#daysNext').disabled=false},
+ cond(v,el){if(v==='None of these'){S.conds=[];el.parentNode.querySelectorAll('.cb').forEach(b=>b.classList.toggle('sel',b===el));S.conds=['None of these'].slice(0,0);return}
+  const i=S.conds.indexOf(v);i<0?S.conds.push(v):S.conds.splice(i,1);el.classList.toggle('sel')},
+ editsym(){go('talk')},
+ pickdoc(v){S.doctor=v;render()},
+ res(v){S.resolved=v;if(v==='yes'){S.token=S.token||null;go('report')}else go('opd')},
+ print(){S.printed=true;render()},
+ mailtoggle(){S.mailBox=!S.mailBox;render()},
+ mailsend(){const e=$('#mailTo').value.trim();if(!/^\S+@\S+\.\S+$/.test(e)){$('#mailTo').focus();return}S.user.email=e;S.mailed=true;render()},
+ wear(){S.wearable=true;render()},
+ notify(v){S.notify=v;S.notified=false;render()},schedule(){S.notified=true;render()},
+ reset(){reset()},
+ theme(){const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.dataset.theme=dark?'light':'dark';if(S.screen==='ecg')render()},
+ big(){document.documentElement.classList.toggle('big');render()},
+ age(v){S.user.dob=(new Date().getFullYear()-(+v))+'-06-15';render()},
+ scn(v){if(S.scenario===v)return;S.scenario=v;S0.scenario=v;S.vitals={};S.dx=null;S.token=null;S.doctor=null;S.busy=false;const ix=['ox','temp','bp','wt','ecg','crunch1','talk','days','verify','crunch2','dx','care','doctor','resolved','opd','report','medicine','followup','done'];if(ix.includes(S.screen)){S.hist=[];go('intro',true)}else render()}
+};
+document.addEventListener('digi-intake-ready',e=>{
+ const d=e.detail||{}; const p=d.patient||{};
+ if(p.name) S.user.name=p.name;
+ if(p.patient_id) apiPatient=p;
+ if(p.patient_id) S.user.id=p.patient_id;
+ if(p.mobile) S.user.mobile=p.mobile;
+ if(p.gender) S.user.gender=p.gender;
+ if(d.age){S.user.dob=(new Date().getFullYear()-Number(d.age))+'-06-15';}
+ const map={'fever':'fever','cough':'cough','headache':'headache','body ache':'ache','cold / runny nose':'cold','fatigue':'ache','stomach pain':'nausea','breathing difficulty':'breath','sore throat':'throat','chest pain':'chest','nausea':'nausea','dizziness':'dizzy'};
+ S.symptoms=(d.symptoms||[]).map(x=>map[String(x).toLowerCase()]).filter(Boolean);
+ S.text=(d.symptoms||[]).filter(x=>!map[String(x).toLowerCase()]).join(', ');
+ S.loginId=p.mobile||p.patient_id||'';
+ S.returning=!!p.patient_id;
+ // Age and symptoms were already collected in the entry gate. Carry them forward
+ // and go straight to the health-kiosk instructions so the patient is never asked twice.
+ S.days=null;
+ go('intro',true);
+});
+document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el)return;const f=ACT[el.dataset.act];if(f)f(el.dataset.v,el)});
+render();
+</script>
+
+
+<style>
+#entryGate{position:fixed;inset:0;z-index:99999;overflow:auto;background:#eaf2ef;color:#123638;font-family:'Hanken Grotesk',Arial,sans-serif;padding:20px}
+#entryGate *{box-sizing:border-box}#entryGate .eg-top{max-width:1320px;margin:0 auto 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#entryGate .eg-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:24px;letter-spacing:-.7px;color:#10383a}
+#entryGate .eg-mark{width:42px;height:42px;border-radius:13px;background:#087b79;color:white;display:grid;place-items:center;font-size:25px}
+#entryGate .eg-spacer{flex:1}#entryGate .eg-pill{border:1px solid #d4e2de;background:#fff;border-radius:999px;padding:8px 12px;font-size:12px;color:#426563}
+#entryGate .eg-wrap{max-width:1320px;margin:auto;display:grid;grid-template-columns:1.08fr .92fr;gap:24px;align-items:stretch}
+#entryGate .eg-hero{border-radius:24px;background:linear-gradient(145deg,#e0efeb,#f8fbf9);padding:clamp(24px,4vw,52px);position:relative;overflow:hidden;min-height:590px;border:1px solid #d5e4df}
+#entryGate .eg-kicker{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#087b79;font-weight:800}
+#entryGate h1{font-size:clamp(36px,4vw,58px);line-height:1.04;letter-spacing:-2px;margin:18px 0;color:#10383a}
+#entryGate .eg-desc{font-size:17px;line-height:1.65;color:#55716f;max-width:520px}
+#entryGate .eg-features{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:30px;max-width:560px}
+#entryGate .eg-feature{background:#ffffffc9;border:1px solid #d9e6e2;border-radius:14px;padding:15px;display:flex;gap:11px;align-items:center;font-size:14px;font-weight:700}
+#entryGate .eg-ico{width:36px;height:36px;border-radius:11px;background:#d7eeea;display:grid;place-items:center;font-size:19px}
+#entryGate .eg-art{position:absolute;right:0;top:22px;width:min(46%,390px);height:auto;object-fit:contain;opacity:1;filter:drop-shadow(0 8px 14px #8caeaa22);pointer-events:none}
+#entryGate .eg-hero h1,#entryGate .eg-desc,#entryGate .eg-kicker{position:relative;z-index:1}
+#entryGate .eg-hero h1{max-width:65%}
+#entryGate .eg-desc{max-width:62%}
+#entryGate .eg-features{position:relative;z-index:2;margin-top:32px}
+#entryGate .eg-ecg{z-index:1}
+
+#entryGate .eg-ecg{position:absolute;bottom:35px;left:24px;width:53%;height:45px;opacity:.75}
+#entryGate .eg-card{background:#fff;border:1px solid #d7e4e0;border-radius:24px;padding:clamp(22px,3vw,40px);box-shadow:0 18px 45px #214d4410;min-height:590px}
+#entryGate .eg-tabs{display:flex;gap:6px;background:#eff5f3;border-radius:12px;padding:5px;margin:18px 0 25px}
+#entryGate button,#entryGate input,#entryGate select{font:inherit}
+#entryGate .eg-tab{border:0;background:transparent;border-radius:9px;padding:11px;flex:1;color:#55716f;cursor:pointer;font-weight:700}
+#entryGate .eg-tab.active{background:#fff;color:#087b79;box-shadow:0 1px 5px #173f3918}
+#entryGate .eg-card h2{font-size:28px;margin:4px 0 7px;letter-spacing:-.7px}
+#entryGate .eg-muted{color:#66817f;font-size:14px;line-height:1.5}
+#entryGate .eg-label{display:block;font-size:13px;font-weight:700;margin:20px 0 7px}
+#entryGate .eg-input{width:100%;border:1px solid #cbdcd7;border-radius:12px;padding:14px;background:#fbfdfc;color:#143638;outline-color:#087b79}
+#entryGate .eg-primary{border:0;border-radius:12px;padding:14px 18px;background:#087b79;color:white;font-weight:800;cursor:pointer;width:100%;margin-top:14px;box-shadow:0 6px 14px #087b7928}
+#entryGate .eg-secondary{border:1px solid #cbdcd7;background:white;color:#234b4b;border-radius:12px;padding:12px;cursor:pointer}
+#entryGate .eg-privacy{margin-top:22px;padding:15px;border-radius:13px;background:#f2f8f6;border:1px solid #dfebe7;display:flex;gap:12px;font-size:13px;color:#54706e}
+#entryGate .eg-disclaimer{max-width:1320px;margin:16px auto 0;text-align:center;color:#6c8581;font-size:12px}
+#entryGate .eg-symptoms{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+#entryGate .eg-sym{border:1px solid #d3e2dd;border-radius:11px;padding:11px;background:#fbfdfc;color:#234b4b;cursor:pointer;text-align:left}
+#entryGate .eg-sym.selected{background:#d9f0ec;border-color:#087b79;color:#075e5e;font-weight:800}
+#entryGate .eg-hidden{display:none!important}
+@media(max-width:850px){#entryGate .eg-wrap{grid-template-columns:1fr}#entryGate .eg-hero{min-height:500px}#entryGate .eg-card{min-height:auto}#entryGate .eg-art{width:min(42%,300px);top:28px;right:8px}#entryGate .eg-hero h1{max-width:66%}#entryGate .eg-desc{max-width:64%}}
+@media(max-width:480px){#entryGate{padding:12px}#entryGate .eg-features{grid-template-columns:1fr 1fr}#entryGate .eg-feature{font-size:12px;padding:10px}#entryGate .eg-hero{padding:23px;min-height:570px}#entryGate .eg-card{padding:22px}#entryGate .eg-art{width:48%;top:95px;right:0;opacity:.92}#entryGate .eg-hero h1{max-width:78%;font-size:38px}#entryGate .eg-desc{max-width:100%;padding-top:110px}}
+</style>
+
+<style>
+/* Screenshot-matched DigiChikitsak entry screen */
+#entryGate{padding:10px 3.2%;background:radial-gradient(ellipse at 20% 35%,#f7fffd 0,#eaf7f5 52%,#e0f0ef 100%);color:#102f35;font-family:'Hanken Grotesk',Arial,sans-serif}
+#entryGate .eg-top{max-width:1400px;height:48px;margin:0 auto 10px;display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+#entryGate .eg-logo{display:flex;align-items:center;gap:10px;font-size:24px;line-height:1;font-weight:800;letter-spacing:-1px;color:#16777a;min-width:290px}
+#entryGate .eg-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#147d7c;color:#fff;font-size:26px;box-shadow:0 5px 15px #0b77772b}
+#entryGate .eg-top>.eg-muted{font-size:11px;position:absolute;top:42px;left:96px;color:#2c6b70}
+#entryGate .eg-spacer{flex:1}
+#entryGate .eg-pill,#entryGate .eg-top .eg-secondary{border:1px solid #d5e7e5;border-radius:22px;background:#eaf5f4;padding:9px 13px;font-size:11px;white-space:nowrap;color:#164d52}
+#entryGate .eg-pill{background:#0e7c7c;color:white}
+#entryGate .eg-wrap{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:1.43fr .97fr;gap:0;border-radius:18px;overflow:hidden;background:rgba(255,255,255,.36);box-shadow:0 14px 36px #3b7c7620;min-height:calc(100vh - 115px)}
+#entryGate .eg-hero{position:relative;min-height:0;padding:32px 24px 16px;overflow:hidden;background:linear-gradient(130deg,#f0fbf8 0%,#dff3f0 100%);display:flex;flex-direction:column}
+#entryGate .eg-kicker{display:inline-flex;align-items:center;align-self:flex-start;border-radius:999px;background:#d0eeea;color:#14666a;padding:8px 13px;font-size:11px;font-weight:700;letter-spacing:0}
+#entryGate .eg-hero h1{font-size:clamp(32px,4vw,48px);line-height:1.02;letter-spacing:-1.6px;margin:15px 0 12px;max-width:61%;font-weight:800;color:#101e20}
+#entryGate .eg-desc{max-width:62%;font-size:14px;line-height:1.48;color:#244d55;margin:0}
+#entryGate .eg-art{position:absolute;width:38%;height:auto;object-fit:contain;right:1%;top:7%;max-height:58%;z-index:1;opacity:1}
+#entryGate .eg-features{position:relative;z-index:2;display:grid;grid-template-columns:repeat(4,1fr);margin-top:20px;background:#eaf7f4e8;border:1px solid #dcefeb;border-radius:14px;overflow:hidden;padding:10px 4px}
+#entryGate .eg-feature{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:5px;padding:7px 5px;font-size:12px;line-height:1.25;color:#15545a;border-right:1px solid #cfe5e2}
+#entryGate .eg-feature:last-child{border-right:0}
+#entryGate .eg-ico{font-size:26px;line-height:1;color:#087d7b}
+#entryGate .eg-ecg{width:100%;height:50px;margin-top:8px;position:relative;z-index:2;flex-shrink:0}
+#entryGate .eg-hero:after{content:"";position:absolute;left:0;right:0;bottom:0;height:23%;z-index:0;background:linear-gradient(180deg,transparent,#b3ded7);opacity:.7}
+#entryGate .eg-card{align-self:stretch;margin:14px;padding:16px;border:1px solid #f7ffff;border-radius:18px;background:rgba(255,255,255,.82);box-shadow:0 8px 24px #2b74721a;display:flex;align-items:stretch;min-width:0}
+#entryGate .eg-card>div{width:100%;display:flex;flex-direction:column}
+#entryGate .eg-card .eg-kicker:empty{display:none}#entryGate .eg-card h2{font-size:22px;letter-spacing:-.5px;margin:12px 0 4px;color:#123b42}
+#entryGate .eg-muted{font-size:12px;line-height:1.45;color:#687b8c}
+#entryGate .eg-tabs{display:grid;grid-template-columns:1fr 1fr;background:#f0f5f6;border-radius:10px;padding:3px;gap:3px;margin:0 0 16px;order:-1}
+#entryGate .eg-tab{border:0;border-radius:8px;background:transparent;padding:10px 6px;color:#203a43;font-size:12px;font-weight:700;cursor:pointer}
+#entryGate .eg-tab.active{background:#17686e;color:white;box-shadow:0 3px 7px #125c6020}
+#entryGate .eg-label{font-size:12px;font-weight:700;color:#254e54;display:block;margin:13px 0 6px}
+#entryGate .eg-input{width:100%;height:42px;border:1px solid #d5e0e5;border-radius:10px;padding:0 12px;background:#fff;color:#173d43;font-size:13px;outline:none}
+#entryGate .eg-input:focus{border-color:#168a87;box-shadow:0 0 0 3px #168a871b}
+#entryGate .eg-primary{border:0;border-radius:10px;background:linear-gradient(90deg,#087d7b,#0d817c);color:#fff;padding:12px 15px;font-size:13px;font-weight:800;cursor:pointer;margin-top:16px;min-height:42px}
+#entryGate .eg-secondary{border:1px solid #d4e2e5;border-radius:10px;background:#eef4f5;color:#124e58;padding:10px 12px;cursor:pointer}
+#entryGate .eg-privacy{margin-top:auto;padding:14px 12px;border-radius:12px;background:#e4f2fb;color:#1a5867;font-size:12px;display:flex;gap:10px;align-items:flex-start}
+#entryGate .eg-privacy b{font-size:13px}
+#entryGate .eg-disclaimer{max-width:1400px;margin:10px auto 0;background:#fff0cb;border:1px solid #f6df9c;color:#845a0a;border-radius:12px;padding:12px 16px;font-size:12px}
+#entryGate .eg-symptoms{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+#entryGate .eg-sym{border:1px solid #d7e6e4;background:#f8fcfb;border-radius:9px;padding:8px;font-size:12px;text-align:left;cursor:pointer;color:#254e54}
+#entryGate .eg-sym.selected{background:#d5f1ec;border-color:#0d817c;color:#075f5e}
+#entryGate .eg-hidden{display:none!important}
+@media(max-width:760px){#entryGate{padding:10px}#entryGate .eg-top{height:auto;flex-wrap:wrap;margin-bottom:10px}#entryGate .eg-logo{min-width:0;font-size:20px}#entryGate .eg-top>.eg-muted{display:none}#entryGate .eg-wrap{grid-template-columns:1fr;min-height:auto}#entryGate .eg-hero{min-height:390px;padding:20px}#entryGate .eg-hero h1{font-size:36px;max-width:68%}#entryGate .eg-desc{max-width:68%;font-size:13px}#entryGate .eg-art{width:40%;top:65px;right:0}#entryGate .eg-features{margin-top:auto}#entryGate .eg-card{margin:10px;padding:14px}#entryGate .eg-disclaimer{font-size:11px}}
+@media(max-width:420px){#entryGate .eg-top .eg-secondary{padding:7px;font-size:10px}#entryGate .eg-hero{min-height:440px}#entryGate .eg-hero h1{font-size:31px;max-width:74%}#entryGate .eg-desc{max-width:100%;padding-top:105px}#entryGate .eg-art{top:65px;width:45%}#entryGate .eg-feature{font-size:10px}}
+</style>
+<div id="entryGate" role="dialog" aria-label="DigiChikitsak patient welcome">
+ <div class="eg-top"><div class="eg-logo"><span class="eg-mark">✚</span><span>DigiChikitsak</span></div><span class="eg-muted">Your First Step to Better Health</span><span class="eg-spacer"></span><span class="eg-pill">🌐 English</span><button class="eg-secondary" onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'">☾ Dark Mode</button><button class="eg-secondary" onclick="document.documentElement.classList.toggle('big')">Aa Large Text</button></div>
+ <div class="eg-wrap">
+  <section class="eg-hero"><div class="eg-kicker">✣ AI-Powered Primary Healthcare Assistant</div><h1>Welcome to<br><span style="color:#087b79">DigiChikitsak</span></h1><p class="eg-desc">A smart, accessible health kiosk to check your basic health, get AI-powered suggestions, and connect with healthcare services.</p>
+   <div class="eg-features"><div class="eg-feature"><span class="eg-ico">♡</span><span>Check vital signs</span></div><div class="eg-feature"><span class="eg-ico">✳</span><span>AI health assessment</span></div><div class="eg-feature"><span class="eg-ico">✚</span><span>Care suggestions</span></div><div class="eg-feature"><span class="eg-ico">▤</span><span>Health report</span></div></div>
+   <svg class="eg-ecg" viewBox="0 0 360 45" fill="none"><path d="M0 24H76L91 24L104 7L120 39L137 15L149 24H190L204 24L218 3L235 41L251 18L263 24H360" stroke="#087b79" stroke-width="2.5" stroke-linejoin="round"/></svg><img class="eg-art" src="/static/assets/doctor-lady.png" alt="Friendly female doctor illustration">
+  </section>
+  <section class="eg-card">
+   <div id="egLogin"><div class="eg-kicker"></div><h2>Welcome Back</h2><p class="eg-muted">Enter your Patient ID or mobile number to continue</p>
+    <div class="eg-tabs"><button class="eg-tab active" data-tab="login">Patient Login</button><button class="eg-tab" data-tab="register">New Registration</button></div>
+    <label class="eg-label" for="egPhone">Patient ID / Mobile Number</label><input class="eg-input" id="egPhone" placeholder="Enter Patient ID or mobile number" autocomplete="username">
+    <button class="eg-primary" id="egContinue">Send OTP　→</button>
+    <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:#788b94;font-size:12px"><span style="height:1px;background:#d2dfe2;flex:1"></span>OR<span style="height:1px;background:#d2dfe2;flex:1"></span></div><button class="eg-secondary" style="width:100%;margin-top:0" id="egQR">▣　Scan Patient QR Code</button><button class="eg-secondary" style="width:100%;margin-top:7px" id="egGuest">Continue as a guest</button><p class="eg-muted" style="text-align:center;margin-top:7px">Demo mode: patient lookup is local; no SMS OTP is sent.</p>
+    <div class="eg-privacy"><span style="font-size:22px">♧</span><div><b>Your Privacy Matters</b><br>Your health data is private in this demo. Some device readings may be simulated.</div></div>
+   </div>
+   <div id="egProfile" class="eg-hidden"><div class="eg-kicker">STEP 1 OF 2 · YOUR PROFILE</div><h2>Tell us a little<br>about yourself</h2><p class="eg-muted">This helps us tailor your health check.</p>
+    <div id="egRegistrationFields"><label class="eg-label" for="egName">Full name</label><input class="eg-input" id="egName" placeholder="Enter your full name" autocomplete="name"><label class="eg-label" for="egGender">Gender</label><select class="eg-input" id="egGender"><option value="Prefer not to say">Prefer not to say</option><option>Female</option><option>Male</option><option>Other</option></select></div><label class="eg-label" for="egAge">Your age</label><input class="eg-input" id="egAge" type="number" min="1" max="120" placeholder="Enter age in years">
+    <label class="eg-label">What symptoms are you experiencing?</label><p class="eg-muted">Select all that apply.</p><div class="eg-symptoms" id="egSymptoms">
+    <button class="eg-sym" data-sym="Fever">🌡 Fever</button><button class="eg-sym" data-sym="Headache">🤕 Headache</button><button class="eg-sym" data-sym="Cough">😷 Cough</button><button class="eg-sym" data-sym="Cold / runny nose">🤧 Cold / runny nose</button><button class="eg-sym" data-sym="Body ache">💪 Body ache</button><button class="eg-sym" data-sym="Fatigue">😴 Fatigue</button><button class="eg-sym" data-sym="Stomach pain">🩺 Stomach pain</button><button class="eg-sym" data-sym="Breathing difficulty">🫁 Breathing difficulty</button>
+    </div><label class="eg-label" for="egOther">Anything else? (optional)</label><input class="eg-input" id="egOther" placeholder="Describe another symptom">
+    <button class="eg-primary" id="egStart">Start health check　→</button><button class="eg-secondary" id="egBack" style="width:100%;margin-top:8px">← Back to login</button>
+   </div>
+  </section>
+ </div><div class="eg-disclaimer">Proof of concept only. Not a substitute for professional medical advice, diagnosis or treatment.</div>
+</div>
+<script>
+(()=> {
+ const gate=document.getElementById('entryGate');
+ let mode='login', existingPatient=null, guest=false;
+ const selected=new Set();
+ const $=id=>document.getElementById(id);
+ const login=$('egLogin'), profile=$('egProfile');
+ function showProfile(){login.classList.add('eg-hidden');profile.classList.remove('eg-hidden');$('egRegistrationFields').classList.toggle('eg-hidden',mode==='login'&&!!existingPatient);$('egName').required=mode==='register';}
+ document.querySelectorAll('#entryGate [data-tab]').forEach(b=>b.addEventListener('click',()=>{
+   mode=b.dataset.tab; existingPatient=null;
+   document.querySelectorAll('#entryGate [data-tab]').forEach(x=>x.classList.toggle('active',x===b));
+   $('egContinue').textContent=mode==='register'?'Continue to profile →':'Send OTP →';
+   $('egRegistrationFields').classList.toggle('eg-hidden',mode==='login');
+ }));
+ async function lookupPatient(identifier){
+   const r=await fetch('/api/patients/lookup?identifier='+encodeURIComponent(identifier));
+   const d=await r.json();
+   if(!r.ok) throw new Error(d.detail||'Patient not found. Choose New Registration or continue as a guest.');
+   return d;
+ }
+ $('egContinue').addEventListener('click',async()=>{
+   const v=$('egPhone').value.trim();
+   if(!v){$('egPhone').focus();$('egPhone').placeholder='Enter Patient ID or mobile number';return;}
+   if(mode==='register'){showProfile();return;}
+   const btn=$('egContinue');btn.disabled=true;btn.textContent='Checking…';
+   try{existingPatient=await lookupPatient(v);showProfile();$('egRegistrationFields').classList.add('eg-hidden');}
+   catch(e){alert(e.message+'\\n\\nFor this proof of concept, OTP is simulated and no SMS is sent.');}
+   finally{btn.disabled=false;btn.textContent='Send OTP →';}
+ });
+ $('egQR').addEventListener('click',()=>{const id=prompt('QR scanner demo: paste or type the Patient ID encoded in your QR code.');if(id){$('egPhone').value=id;$('egContinue').click();}});
+ $('egGuest').addEventListener('click',()=>{guest=true;existingPatient=null;mode='guest';showProfile();$('egRegistrationFields').classList.remove('eg-hidden');$('egName').required=false;});
+ document.querySelectorAll('#egSymptoms [data-sym]').forEach(b=>b.addEventListener('click',()=>{
+   if(selected.has(b.dataset.sym)){selected.delete(b.dataset.sym);b.classList.remove('selected')}
+   else{selected.add(b.dataset.sym);b.classList.add('selected')}
+ }));
+ $('egBack').addEventListener('click',()=>{profile.classList.add('eg-hidden');login.classList.remove('eg-hidden');});
+ $('egStart').addEventListener('click',async()=>{
+   const age=+$('egAge').value;
+   if(!age||age<1||age>120){$('egAge').focus();$('egAge').reportValidity();return;}
+   if(selected.size===0&&!$('egOther').value.trim()){if(!confirm('No symptoms selected. Continue with a general health check?'))return;}
+   let patient=existingPatient;
+   if(!patient && (mode==='register'||mode==='guest')){
+     const name=$('egName').value.trim()||(mode==='guest'?'Guest Patient':'');
+     if(!name){$('egName').focus();$('egName').reportValidity();return;}
+     try{
+       const response=await fetch('/api/patients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,age,gender:$('egGender').value,mobile:$('egPhone').value.trim()||null})});
+       const data=await response.json();if(!response.ok)throw new Error(data.detail||'Registration failed');patient=data;
+     }catch(e){alert(e.message);return;}
+   }
+   const symptoms=[...selected,...($('egOther').value.trim()?[$('egOther').value.trim()]:[])];
+   try{sessionStorage.setItem('digiPatientProfile',JSON.stringify({age,symptoms,patientId:patient?.patient_id||'Guest',patient}));}catch(e){}
+   document.dispatchEvent(new CustomEvent('digi-intake-ready',{detail:{age,symptoms,patient}}));
+   gate.remove();
+ });
+})();
+</script>
+
+</body></html>
